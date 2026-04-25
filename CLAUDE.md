@@ -14,4 +14,12 @@
 
 ## 技术栈
 
-待定（首个 feature design 阶段确定）
+- **后端**：Python 3.14 + FastAPI（async）
+- **LLM**：OpenAI 兼容协议（`LLMClient` 统一封装，支持自定义 base_url / model）
+- **存储**：SQLite（元数据）+ 文件系统（`data/{book_id}/`）
+- **前端**：原生 HTML + CSS + JS，无构建链，FastAPI StaticFiles 提供
+- **依赖**：httpx（LLM 调用）、aiosqlite（异步 SQLite）、pydantic / pydantic-settings
+
+## 架构文档
+
+详见 `codestable/architecture/ARCHITECTURE.md`（系统架构）和 `codestable/architecture/AGENTS.md`（Agent 开发约定）。
