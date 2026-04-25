@@ -1,7 +1,12 @@
 from app.llm_client import LLMClient
+from app.llm_config import load_llm_config
 from app.models.context import PartialContext
 
-llm = LLMClient()
+
+def _llm() -> LLMClient:
+    cfg = load_llm_config()
+    return LLMClient(base_url=cfg["base_url"], api_key=cfg["api_key"], model=cfg["model"])
+
 
 EXTRACT_PROMPT = """你是一个网文分析助手。阅读以下小说章节，提取以下信息：
 
@@ -34,5 +39,6 @@ async def extract_batch(chapters: list[dict], batch_start: int, batch_end: int) 
         end=batch_end,
         chapter_texts=chapter_texts,
     )
+    llm = _llm()
     data = await llm.chat_json([{"role": "user", "content": prompt}])
     return PartialContext.model_validate(data)

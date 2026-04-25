@@ -1,4 +1,5 @@
 from app.llm_client import LLMClient
+from app.llm_config import load_llm_config
 from app.models.context import GlobalContext
 from app.models.qa import AskResponse
 
@@ -14,18 +15,17 @@ QA_PROMPT = """你是网文阅读助手。基于以下原文片段和全局上�
 {retrieved_text}
 """
 
-llm = LLMClient()
+
+def _llm() -> LLMClient:
+    cfg = load_llm_config()
+    return LLMClient(base_url=cfg["base_url"], api_key=cfg["api_key"], model=cfg["model"])
 
 
 def search_chapters(original_text: str, question: str, context: GlobalContext) -> list[tuple[int, str]]:
     """简单 keyword 检索：从原版全文中找相关段落，返回 (章节号, 段落) 列表。"""
-    import re
-
-    # split original text by chapters if possible
     from app.modules.indexer.chapter_parser import parse_chapters
     chapters = parse_chapters(original_text)
 
-    # extract keywords from question (simple: just use question words)
     keywords = [c.name for c in context.characters if c.name in question]
     keywords += [item for item in context.key_items if item in question]
     if not keywords:
@@ -34,11 +34,10 @@ def search_chapters(original_text: str, question: str, context: GlobalContext) -
     results = []
     for ch in chapters:
         if any(kw in ch["text"] for kw in keywords if kw):
-            # take first 500 chars of matching chapter
             snippet = ch["text"][:500]
             results.append((ch["number"], snippet))
 
-    return results[:5]  # top 5
+    return results[:5]
 
 
 async def ask_question(
@@ -69,6 +68,7 @@ async def ask_question(
         {"role": "user", "content": question},
     ]
 
+    llm = _llm()
     answer = await llm.chat(messages, temperature=0.5)
     source_chapters = [num for num, _ in related] if related else []
 

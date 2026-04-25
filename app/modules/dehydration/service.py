@@ -1,11 +1,15 @@
 from app.llm_client import LLMClient
+from app.llm_config import load_llm_config
 from app.models.context import GlobalContext
 from app.models.dehydration import BlockResult, Layer
 from app.modules.dehydration.prompt import DEHYDRATE_PROMPT
 
 BLOCK_MAX_CHARS = 800
 
-llm = LLMClient()
+
+def _llm() -> LLMClient:
+    cfg = load_llm_config()
+    return LLMClient(base_url=cfg["base_url"], api_key=cfg["api_key"], model=cfg["model"])
 
 
 def split_into_blocks(text: str) -> list[str]:
@@ -50,6 +54,7 @@ async def dehydrate_chapter(
         key_items="、".join(context.key_items) if context.key_items else "无",
     )
 
+    llm = _llm()
     for block in blocks:
         messages = [
             {"role": "system", "content": prompt},

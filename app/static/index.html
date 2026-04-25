@@ -8,7 +8,10 @@
 </head>
 <body>
 <div class="container">
-  <h1>AI 网文脱水机</h1>
+  <div class="header-bar">
+    <h1 style="margin:0">AI 网文脱水机</h1>
+    <button onclick="openSettings()" class="btn btn-secondary" style="font-size:13px">⚙️ LLM 设置</button>
+  </div>
   <p class="subtitle">上传小说 → 自动脱水 → 阅读纯净版</p>
 
   <div class="card" id="upload-section">
@@ -42,9 +45,47 @@
   </div>
 </div>
 
+<!-- Settings Modal -->
+<div id="settings-modal" class="modal" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>LLM 配置</h3>
+      <button onclick="closeSettings()" class="close-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>平台</label>
+        <select id="llm-provider" onchange="onProviderChange()">
+          <option value="openai">OpenAI (GPT-4o)</option>
+          <option value="gemini">Google Gemini</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="dashscope">阿里百炼 / Coding Plan</option>
+          <option value="custom">自定义</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>API 地址</label>
+        <input type="text" id="llm-base-url" placeholder="https://...">
+      </div>
+      <div class="form-group">
+        <label>模型</label>
+        <input type="text" id="llm-model" placeholder="模型名称">
+        <datalist id="model-suggestions"></datalist>
+      </div>
+      <div class="form-group">
+        <label>API Key</label>
+        <input type="password" id="llm-api-key" placeholder="sk-...">
+      </div>
+      <button onclick="saveLLMConfig()" class="btn btn-primary" style="width:100%">保存</button>
+      <div id="settings-status" class="status"></div>
+    </div>
+  </div>
+</div>
+
 <script src="/app.js"></script>
 <script>
 let bookId = null;
+let llmProviders = {};
 
 async function uploadFile() {
   const file = document.getElementById('file-input').files[0];
@@ -91,6 +132,63 @@ function renderIndexResult(ctx) {
     <p><b>关键道具</b>：${ctx.key_items.join('、') || '无'}</p>
   `;
 }
+
+// Settings
+async function loadSettings() {
+  const res = await fetch('/api/settings/ll');
+  const data = await res.json();
+  llmProviders = data.providers;
+  const cfg = data.current;
+  document.getElementById('llm-provider').value = cfg.provider || 'openai';
+  document.getElementById('llm-base-url').value = cfg.base_url || '';
+  document.getElementById('llm-model').value = cfg.model || '';
+  document.getElementById('llm-api-key').value = cfg.api_key || '';
+  onProviderChange();
+}
+
+function onProviderChange() {
+  const provider = document.getElementById('llm-provider').value;
+  const p = llmProviders[provider];
+  if (p) {
+    document.getElementById('llm-base-url').value = p.base_url;
+    const datalist = document.getElementById('model-suggestions');
+    datalist.innerHTML = p.models.map(m => `<option value="${m}">`).join('');
+    document.getElementById('llm-model').setAttribute('list', 'model-suggestions');
+    if (p.models.length > 0) {
+      document.getElementById('llm-model').value = p.models[0];
+    }
+  }
+}
+
+function openSettings() {
+  document.getElementById('settings-modal').style.display = 'flex';
+  loadSettings();
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').style.display = 'none';
+}
+
+async function saveLLMConfig() {
+  const data = {
+    provider: document.getElementById('llm-provider').value,
+    base_url: document.getElementById('llm-base-url').value,
+    model: document.getElementById('llm-model').value,
+    api_key: document.getElementById('llm-api-key').value,
+  };
+  const res = await fetch('/api/settings/llm', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  });
+  const result = await res.json();
+  document.getElementById('settings-status').textContent = result.status === 'ok' ? '保存成功！' : '保存失败';
+}
+
+// Close modal on outside click
+document.getElementById('settings-modal').onclick = function(e) {
+  if (e.target === this) closeSettings();
+};
 
 document.getElementById('upload-btn').onclick = uploadFile;
 document.getElementById('index-btn').onclick = triggerIndex;
