@@ -1,0 +1,97 @@
+feature: 2026-04-25-novel-dehydrator-mvp
+steps:
+  - name: 项目骨架 + 数据模型
+    status: pending
+  - name: 存储层 + LLM 客户端
+    status: pending
+  - name: 模块一（索引）——阶段 A 章节解析
+    status: pending
+  - name: 模块一（索引）——阶段 B/C 分批提取+合并
+    status: pending
+  - name: 模块二（智能脱水）
+    status: pending
+  - name: 模块三（伴随式 Q&A）
+    status: pending
+  - name: 路由层
+    status: pending
+  - name: Web UI（3 页面）
+    status: pending
+checks:
+  - name: 范围守护-不做多本书管理
+    status: pending
+    source: 明确不做
+  - name: 范围守护-不做实时流式脱水
+    status: pending
+    source: 明确不做
+  - name: 范围守护-不做多轮对话 Q&A
+    status: pending
+    source: 明确不做
+  - name: 范围守护-不做 OCR/图片识别
+    status: pending
+    source: 明确不做
+  - name: 范围守护-不做多模型自动路由
+    status: pending
+    source: 明确不做
+  - name: 可卸载性-索引路由 /api/index 可拔除
+    status: pending
+    source: 挂载点
+  - name: 可卸载性-脱水路由 /api/dehydrate 可拔除
+    status: pending
+    source: 挂载点
+  - name: 可卸载性-Q&A 路由 /api/qa/ask 可拔除
+    status: pending
+    source: 挂载点
+  - name: 可卸载性-静态文件 app/static/ 可移除
+    status: pending
+    source: 挂载点
+  - name: 可卸载性-存储路径 data/{book_id}/ 可清理
+    status: pending
+    source: 挂载点
+  - name: 接口一致性-POST /api/books/upload 返回 book_id
+    status: pending
+    source: 接口契约
+  - name: 接口一致性-IndexResponse 格式匹配 GlobalContext
+    status: pending
+    source: 接口契约
+  - name: 接口一致性-DehydrateResponse 含 blocks + dehydrated_text
+    status: pending
+    source: 接口契约
+  - name: 接口一致性-AskResponse 含 answer + source_chapters
+    status: pending
+    source: 接口契约
+  - name: 测试-T1 全局索引格式校验（非法 JSON → retry → 错误）
+    status: pending
+    source: 测试设计
+  - name: 测试-T1b 章节解析正确性（正则匹配 + 降级切分）
+    status: pending
+    source: 测试设计
+  - name: 测试-T1c 合并去重（同名角色跨批合并、伏笔回收标记）
+    status: pending
+    source: 测试设计
+  - name: 测试-T2 脱水三层分类正确性（给定同一段文本，三种 layer 均有体现）
+    status: pending
+    source: 测试设计
+  - name: 测试-T2b 块切分按段落边界对齐
+    status: pending
+    source: 测试设计
+  - name: 测试-T2c DELETE 块在输出中不出现
+    status: pending
+    source: 测试设计
+  - name: 测试-T3 摘要格式以 [注： 开头 ] 结尾
+    status: pending
+    source: 测试设计
+  - name: 测试-T4 Q&A 不基于脱水版回答
+    status: pending
+    source: 测试设计
+  - name: 测试-T5 大章（>15000字）不截断
+    status: pending
+    source: 测试设计
+  - name: 测试-T6 首页上传文件后跳转索引
+    status: pending
+    source: Web UI
+  - name: 测试-T7 阅读器显示脱水版+Q&A 侧栏
+    status: pending
+    source: Web UI
+  - name: 测试-T8 上下文页展示角色/主线/伏笔
+    status: pending
+    source: Web UI

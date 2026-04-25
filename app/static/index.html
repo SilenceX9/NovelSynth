@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 网文脱水机</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="container">
+  <h1>AI 网文脱水机</h1>
+  <p class="subtitle">上传小说 → 自动脱水 → 阅读纯净版</p>
+
+  <div class="card" id="upload-section">
+    <h2>上传小说</h2>
+    <input type="file" id="file-input" accept=".txt,.epub" class="file-input">
+    <button id="upload-btn" class="btn btn-primary">上传</button>
+    <div id="upload-status" class="status"></div>
+  </div>
+
+  <div class="card" id="index-section" style="display:none">
+    <h2>全局索引</h2>
+    <button id="index-btn" class="btn btn-primary">开始索引（第一遍通读）</button>
+    <div id="index-status" class="status"></div>
+    <div id="index-result" class="index-result"></div>
+  </div>
+
+  <div class="card" id="dehydrate-section" style="display:none">
+    <h2>智能脱水</h2>
+    <button id="dehydrate-btn" class="btn btn-primary">开始脱水（第二遍精读）</button>
+    <div id="dehydrate-status" class="status"></div>
+  </div>
+
+  <div class="card" id="read-section" style="display:none">
+    <h2>阅读</h2>
+    <a href="/read.html" class="btn btn-primary" id="read-link" target="_blank">打开阅读器</a>
+  </div>
+
+  <div class="card" id="context-section" style="display:none">
+    <h2>全局上下文</h2>
+    <a href="/context.html" class="btn btn-secondary" id="context-link" target="_blank">查看角色/主线/伏笔</a>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+let bookId = null;
+
+async function uploadFile() {
+  const file = document.getElementById('file-input').files[0];
+  if (!file) return alert('请先选择文件');
+  const fd = new FormData();
+  fd.append('file', file);
+  setStatus('upload-status', '上传中...');
+  const res = await fetch('/api/books/upload', { method: 'POST', body: fd });
+  const data = await res.json();
+  bookId = data.book_id;
+  setStatus('upload-status', `上传成功！book_id: ${bookId}`);
+  showSection('index-section');
+}
+
+async function triggerIndex() {
+  setStatus('index-status', '索引中...（可能需要几分钟）');
+  const res = await fetch(`/api/index/${bookId}`, { method: 'POST' });
+  const data = await res.json();
+  if (data.status === 'failed') {
+    setStatus('index-status', `索引失败：${data.error}`);
+    return;
+  }
+  setStatus('index-status', '索引完成！');
+  renderIndexResult(data.context);
+  showSection('dehydrate-section');
+  showSection('context-section');
+}
+
+async function triggerDehydrate() {
+  setStatus('dehydrate-status', '脱水中...（可能需要几分钟）');
+  const res = await fetch(`/api/dehydrate/${bookId}`, { method: 'POST' });
+  const data = await res.json();
+  setStatus('dehydrate-status', '脱水完成！');
+  showSection('read-section');
+}
+
+function renderIndexResult(ctx) {
+  const el = document.getElementById('index-result');
+  el.innerHTML = `
+    <h3>提取结果</h3>
+    <p><b>角色</b>：${ctx.characters.map(c => c.name).join('、')}</p>
+    <p><b>主线章节</b>：${ctx.main_plot.length} 条</p>
+    <p><b>伏笔</b>：${ctx.foreshadows.map(f => f.description).join('、') || '无'}</p>
+    <p><b>关键道具</b>：${ctx.key_items.join('、') || '无'}</p>
+  `;
+}
+
+document.getElementById('upload-btn').onclick = uploadFile;
+document.getElementById('index-btn').onclick = triggerIndex;
+document.getElementById('dehydrate-btn').onclick = triggerDehydrate;
+</script>
+</body>
+</html>

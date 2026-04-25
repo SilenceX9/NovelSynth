@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全局上下文 - AI 网文脱水机</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="container">
+  <div class="header-bar">
+    <h2 style="margin:0">全局上下文</h2>
+    <a href="/" class="btn btn-secondary" style="font-size:13px">返回首页</a>
+  </div>
+
+  <div id="loading" class="status">加载中...</div>
+  <div id="context-content" style="display:none">
+    <div class="card">
+      <h3>核心角色</h3>
+      <table id="char-table" class="data-table">
+        <thead><tr><th>角色</th><th>定位</th><th>关系</th><th>出场范围</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>主线剧情</h3>
+      <ol id="plot-list"></ol>
+    </div>
+    <div class="card">
+      <h3>伏笔</h3>
+      <ul id="foreshadow-list"></ul>
+    </div>
+    <div class="card">
+      <h3>关键道具</h3>
+      <ul id="items-list"></ul>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+async function loadContext() {
+  const bookId = getBookId();
+  if (!bookId) {
+    document.getElementById('loading').textContent = '没有找到 book_id，请先在首页上传小说';
+    return;
+  }
+  const res = await fetch(`/api/index/${bookId}/context`);
+  if (!res.ok) {
+    document.getElementById('loading').textContent = '上下文不存在，请先完成索引';
+    return;
+  }
+  const ctx = await res.json();
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('context-content').style.display = 'block';
+
+  const tbody = document.querySelector('#char-table tbody');
+  ctx.characters.forEach(c => {
+    tbody.innerHTML += `<tr><td>${c.name}</td><td>${c.role}</td><td>${c.relationships.join('；')}</td><td>第${c.first_chapter}-${c.last_chapter}章</td></tr>`;
+  });
+
+  const plotList = document.getElementById('plot-list');
+  ctx.main_plot.forEach(p => {
+    plotList.innerHTML += `<li>${p}</li>`;
+  });
+
+  const foreshadowList = document.getElementById('foreshadow-list');
+  ctx.foreshadows.forEach(f => {
+    foreshadowList.innerHTML += `<li>${f.description}（第${f.setup_chapter}章）${f.resolved ? ' ✅已回收' : ' ⏳未回收'}</li>`;
+  });
+
+  const itemsList = document.getElementById('items-list');
+  ctx.key_items.forEach(item => {
+    itemsList.innerHTML += `<li>${item}</li>`;
+  });
+}
+loadContext();
+</script>
+</body>
+</html>
