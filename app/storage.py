@@ -65,6 +65,33 @@ class Storage:
             return ""
         return path.read_text(encoding="utf-8")
 
+    async def save_dehydrated_blocks(self, book_id: str, blocks: list[dict]):
+        import json
+        path = self.data_dir / book_id / "dehydrated_blocks.json"
+        path.write_text(json.dumps(blocks, ensure_ascii=False), encoding="utf-8")
+
+    async def load_dehydrated_blocks(self, book_id: str) -> list[dict]:
+        import json
+        path = self.data_dir / book_id / "dehydrated_blocks.json"
+        if not path.exists():
+            return []
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    async def save_chapter_dehydrated(self, book_id: str, chapters: list[dict]):
+        """Save per-chapter dehydration results for EPUB export.
+        Each dict: {"title": str, "text": str}.
+        """
+        import json
+        path = self.data_dir / book_id / "dehydrated_chapters.json"
+        path.write_text(json.dumps(chapters, ensure_ascii=False), encoding="utf-8")
+
+    async def load_chapter_dehydrated(self, book_id: str) -> list[dict]:
+        import json
+        path = self.data_dir / book_id / "dehydrated_chapters.json"
+        if not path.exists():
+            return []
+        return json.loads(path.read_text(encoding="utf-8"))
+
     async def get_status(self, book_id: str) -> dict:
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
@@ -93,4 +120,34 @@ class Storage:
             await db.execute(
                 "UPDATE books SET dehydrated = 1 WHERE book_id = ?", (book_id,)
             )
+            await db.commit()
+
+    async def list_books(self) -> list[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "CREATE TABLE IF NOT EXISTS books "
+                "(book_id TEXT PRIMARY KEY, title TEXT, "
+                "indexed INTEGER DEFAULT 0, dehydrated INTEGER DEFAULT 0)"
+            )
+            async with db.execute(
+                "SELECT book_id, title, indexed, dehydrated FROM books ORDER BY rowid DESC"
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [
+            {
+                "book_id": r[0],
+                "title": r[1],
+                "indexed": bool(r[2]),
+                "dehydrated": bool(r[3]),
+            }
+            for r in rows
+        ]
+
+    async def delete_book(self, book_id: str):
+        import shutil
+        book_dir = self.data_dir / book_id
+        if book_dir.exists():
+            shutil.rmtree(book_dir)
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM books WHERE book_id = ?", (book_id,))
             await db.commit()

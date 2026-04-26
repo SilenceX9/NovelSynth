@@ -4,44 +4,182 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI 网文脱水机</title>
-<link rel="stylesheet" href="/app.css">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+  background: linear-gradient(135deg, #f5f2eb 0%, #ede8e0 100%);
+  min-height: 100vh;
+  color: #2c2c2c;
+}
+
+.container { max-width: 800px; margin: 0 auto; padding: 24px 20px 60px; }
+
+/* Header */
+.header {
+  text-align: center; padding: 40px 0 32px;
+}
+.header h1 {
+  font-size: 32px; font-weight: 700;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 8px;
+}
+.header p { color: #888; font-size: 15px; }
+.header-actions { position: absolute; top: 20px; right: 24px; }
+
+.btn {
+  padding: 8px 18px; border-radius: 10px; border: none;
+  font-size: 13px; cursor: pointer; font-weight: 500;
+  transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-primary { background: #2563eb; color: white; }
+.btn-primary:hover { background: #1d4ed8; transform: translateY(-1px); }
+.btn-secondary { background: #f0eeea; color: #555; }
+.btn-secondary:hover { background: #e5e2dc; }
+.btn-ghost { background: transparent; color: #666; }
+.btn-ghost:hover { background: #f0eeea; }
+.btn-danger { background: #fef2f2; color: #dc2626; }
+.btn-danger:hover { background: #fee2e2; }
+.btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+
+/* Cards */
+.card {
+  background: #fff; border-radius: 16px; padding: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+  margin-bottom: 20px;
+  border: 1px solid rgba(0,0,0,0.04);
+}
+.card h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: #1a1a1a; }
+.card h3 { font-size: 15px; font-weight: 600; margin: 12px 0 8px; color: #333; }
+
+/* Upload area */
+.upload-area {
+  border: 2px dashed #d0cdc6; border-radius: 12px;
+  padding: 32px; text-align: center; cursor: pointer;
+  transition: all 0.2s; position: relative;
+}
+.upload-area:hover { border-color: #2563eb; background: #f8f7ff; }
+.upload-area.dragover { border-color: #2563eb; background: #eef0ff; }
+.upload-area .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
+.upload-area p { color: #888; font-size: 14px; }
+.upload-area input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+}
+
+/* History table */
+.history-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-radius: 10px;
+  transition: background 0.15s;
+  border: 1px solid #f0f0f0; margin-bottom: 8px;
+}
+.history-item:hover { background: #fafafa; border-color: #e5e5e5; }
+.history-info { flex: 1; min-width: 0; }
+.history-info .title { font-weight: 600; font-size: 15px; color: #1a1a1a; margin-bottom: 6px; }
+.history-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+.badge {
+  display: inline-block; padding: 2px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 500; margin-right: 4px;
+}
+.badge-indexed { background: #dbeafe; color: #1d4ed8; }
+.badge-dehydrated { background: #dcfce7; color: #15803d; }
+.badge-pending { background: #fef3c7; color: #b45309; }
+.badge-running { background: #dbeafe; color: #2563eb; }
+.badge-paused { background: #fef3c7; color: #b45309; }
+
+.empty-state { text-align: center; padding: 48px 20px; color: #bbb; }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; }
+
+.status { font-size: 13px; margin-top: 12px; color: #666; }
+.status.success { color: #15803d; }
+.status.error { color: #dc2626; }
+
+/* Divider */
+.divider {
+  display: flex; align-items: center; gap: 16px;
+  margin: 28px 0; color: #ccc;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: #e5e5e5;
+}
+
+/* Settings Modal */
+.modal {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-content {
+  background: #fff; border-radius: 16px; width: 440px;
+  max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  overflow: hidden;
+}
+.modal-header {
+  padding: 20px 24px 16px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid #f0f0f0;
+}
+.modal-header h3 { font-size: 16px; }
+.close-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #999; padding: 4px; }
+.modal-body { padding: 20px 24px 24px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+.form-group input, .form-group select {
+  width: 100%; padding: 9px 12px; border: 1.5px solid #e0e0e0;
+  border-radius: 8px; font-size: 14px; font-family: inherit;
+}
+.form-group input:focus, .form-group select:focus { outline: none; border-color: #2563eb; }
+
+/* Context link button */
+.context-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; background: #f0eeea; color: #555;
+  border-radius: 8px; text-decoration: none; font-size: 13px;
+  transition: background 0.15s;
+}
+.context-btn:hover { background: #e5e2dc; }
+
+/* Responsive */
+@media (max-width: 600px) {
+  .container { padding: 16px 12px 40px; }
+  .header { padding: 24px 0 20px; }
+  .header h1 { font-size: 24px; }
+  .history-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .history-actions { align-self: flex-end; }
+}
+</style>
 </head>
 <body>
 <div class="container">
-  <div class="header-bar">
-    <h1 style="margin:0">AI 网文脱水机</h1>
-    <button onclick="openSettings()" class="btn btn-secondary" style="font-size:13px">⚙️ LLM 设置</button>
+  <div class="header">
+    <div class="header-actions">
+      <button onclick="openSettings()" class="btn btn-secondary">⚙️ LLM 设置</button>
+    </div>
+    <h1>AI 网文脱水机</h1>
+    <p>上传小说 → 自动脱水 → 阅读纯净版</p>
   </div>
-  <p class="subtitle">上传小说 → 自动脱水 → 阅读纯净版</p>
 
-  <div class="card" id="upload-section">
-    <h2>上传小说</h2>
-    <input type="file" id="file-input" accept=".txt,.epub" class="file-input">
-    <button id="upload-btn" class="btn btn-primary">上传</button>
+  <!-- History -->
+  <div class="card">
+    <h2>历史记录</h2>
+    <div id="history-list"></div>
+  </div>
+
+  <div class="divider">或</div>
+
+  <!-- Upload -->
+  <div class="card">
+    <h2>上传新小说</h2>
+    <div class="upload-area" id="upload-area">
+      <div class="icon">📄</div>
+      <p>拖拽文件到此处，或点击选择</p>
+      <p style="font-size:12px;color:#bbb;margin-top:4px">支持 .txt 文件</p>
+      <input type="file" id="file-input" accept=".txt" style="position:absolute;inset:0;opacity:0;cursor:pointer">
+    </div>
     <div id="upload-status" class="status"></div>
-  </div>
-
-  <div class="card" id="index-section" style="display:none">
-    <h2>全局索引</h2>
-    <button id="index-btn" class="btn btn-primary">开始索引（第一遍通读）</button>
-    <div id="index-status" class="status"></div>
-    <div id="index-result" class="index-result"></div>
-  </div>
-
-  <div class="card" id="dehydrate-section" style="display:none">
-    <h2>智能脱水</h2>
-    <button id="dehydrate-btn" class="btn btn-primary">开始脱水（第二遍精读）</button>
-    <div id="dehydrate-status" class="status"></div>
-  </div>
-
-  <div class="card" id="read-section" style="display:none">
-    <h2>阅读</h2>
-    <a href="/read.html" class="btn btn-primary" id="read-link" target="_blank">打开阅读器</a>
-  </div>
-
-  <div class="card" id="context-section" style="display:none">
-    <h2>全局上下文</h2>
-    <a href="/context.html" class="btn btn-secondary" id="context-link" target="_blank">查看角色/主线/伏笔</a>
   </div>
 </div>
 
@@ -82,11 +220,107 @@
   </div>
 </div>
 
+<!-- Export Modal -->
+<div id="export-modal" class="modal" style="display:none">
+  <div class="modal-content" style="width:360px">
+    <div class="modal-header">
+      <h3>导出脱水版</h3>
+      <button onclick="closeExportModal()" class="close-btn">&times;</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px">
+      <p style="font-size:14px;color:#666;margin:0" id="export-title"></p>
+      <button onclick="doExport('txt')" class="btn btn-secondary" style="justify-content:center;padding:14px 18px">
+        <span>📄</span>
+        <span style="flex:1;text-align:left">
+          <span style="display:block;font-weight:600">TXT 纯文本</span>
+          <span style="font-size:12px;color:#999">脱水后的纯文本，适合任何阅读器</span>
+        </span>
+      </button>
+      <button onclick="doExport('epub')" class="btn btn-secondary" style="justify-content:center;padding:14px 18px">
+        <span>📚</span>
+        <span style="flex:1;text-align:left">
+          <span style="display:block;font-weight:600">EPUB 电子书</span>
+          <span style="font-size:12px;color:#999">带章节目录，适合 Apple Books / Kindle</span>
+        </span>
+      </button>
+      <div id="export-status" class="status"></div>
+    </div>
+  </div>
+</div>
+
 <script src="/app.js"></script>
 <script>
 let bookId = null;
 let llmProviders = {};
 
+// History
+async function loadHistory() {
+  const res = await fetch('/api/books/with-tasks');
+  const books = await res.json();
+  const el = document.getElementById('history-list');
+
+  if (books.length === 0) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📚</div><p>暂无记录，上传一本小说开始吧</p></div>';
+    return;
+  }
+
+  el.innerHTML = books.map(b => {
+    const badges = [];
+
+    // Index status
+    if (b.indexed || b.index_status === 'done') {
+      badges.push('<span class="badge badge-indexed">索引完成</span>');
+    } else if (b.index_status === 'running') {
+      badges.push('<span class="badge badge-running">索引中</span>');
+    } else if (b.index_status === 'paused') {
+      badges.push('<span class="badge badge-paused">索引暂停</span>');
+    }
+
+    // Dehydrate status
+    if (b.dehydrated || b.dehydrate_status === 'done') {
+      badges.push('<span class="badge badge-dehydrated">脱水完成</span>');
+    } else if (b.dehydrate_status === 'running') {
+      badges.push('<span class="badge badge-running">脱水中</span>');
+    } else if (b.dehydrate_status === 'paused') {
+      badges.push('<span class="badge badge-paused">脱水暂停</span>');
+    } else if (b.indexed && !b.dehydrated) {
+      badges.push('<span class="badge badge-pending">待脱水</span>');
+    }
+
+    if (!b.indexed && !b.index_status) {
+      badges.push('<span class="badge badge-pending">待处理</span>');
+    }
+
+    // Actions
+    const actions = [];
+    // Always show "查看" to see task state + history
+    actions.push(`<a href="/task.html?book_id=${b.book_id}" class="btn btn-sm btn-secondary">查看</a>`);
+    if (b.dehydrated || b.dehydrate_status === 'done') {
+      actions.push(`<a href="/read.html?book_id=${b.book_id}" target="_blank" class="btn btn-sm btn-primary">阅读</a>`);
+      actions.push(`<button onclick="openExportModal('${b.book_id}', '${escHtml(b.title)}')" class="btn btn-sm btn-secondary">导出</button>`);
+    }
+    actions.push(`<button onclick="deleteBook('${b.book_id}', '${escHtml(b.title)}')" class="btn btn-sm btn-danger">删除</button>`);
+
+    return `<div class="history-item">
+      <div class="history-info">
+        <div class="title">${escHtml(b.title)}</div>
+        <div>${badges.join('')}</div>
+      </div>
+      <div class="history-actions">${actions.join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteBook(id, title) {
+  if (!confirm(`确定删除「${title}」？`)) return;
+  await fetch(`/api/books/${id}`, { method: 'DELETE' });
+  await loadHistory();
+  if (bookId === id) {
+    bookId = null;
+  }
+}
+
+// Upload - redirect to task page
 async function uploadFile() {
   const file = document.getElementById('file-input').files[0];
   if (!file) return alert('请先选择文件');
@@ -96,46 +330,18 @@ async function uploadFile() {
   const res = await fetch('/api/books/upload', { method: 'POST', body: fd });
   const data = await res.json();
   bookId = data.book_id;
-  setStatus('upload-status', `上传成功！book_id: ${bookId}`);
-  showSection('index-section');
-}
+  setBookId(bookId);
+  setStatus('upload-status', `上传成功！正在跳转任务页...`, 'success');
 
-async function triggerIndex() {
-  setStatus('index-status', '索引中...（可能需要几分钟）');
-  const res = await fetch(`/api/index/${bookId}`, { method: 'POST' });
-  const data = await res.json();
-  if (data.status === 'failed') {
-    setStatus('index-status', `索引失败：${data.error}`);
-    return;
-  }
-  setStatus('index-status', '索引完成！');
-  renderIndexResult(data.context);
-  showSection('dehydrate-section');
-  showSection('context-section');
-}
-
-async function triggerDehydrate() {
-  setStatus('dehydrate-status', '脱水中...（可能需要几分钟）');
-  const res = await fetch(`/api/dehydrate/${bookId}`, { method: 'POST' });
-  const data = await res.json();
-  setStatus('dehydrate-status', '脱水完成！');
-  showSection('read-section');
-}
-
-function renderIndexResult(ctx) {
-  const el = document.getElementById('index-result');
-  el.innerHTML = `
-    <h3>提取结果</h3>
-    <p><b>角色</b>：${ctx.characters.map(c => c.name).join('、')}</p>
-    <p><b>主线章节</b>：${ctx.main_plot.length} 条</p>
-    <p><b>伏笔</b>：${ctx.foreshadows.map(f => f.description).join('、') || '无'}</p>
-    <p><b>关键道具</b>：${ctx.key_items.join('、') || '无'}</p>
-  `;
+  // Redirect to task page
+  setTimeout(() => {
+    window.location.href = `/task.html?book_id=${bookId}`;
+  }, 500);
 }
 
 // Settings
 async function loadSettings() {
-  const res = await fetch('/api/settings/ll');
+  const res = await fetch('/api/settings/llm');
   const data = await res.json();
   llmProviders = data.providers;
   const cfg = data.current;
@@ -154,8 +360,9 @@ function onProviderChange() {
     const datalist = document.getElementById('model-suggestions');
     datalist.innerHTML = p.models.map(m => `<option value="${m}">`).join('');
     document.getElementById('llm-model').setAttribute('list', 'model-suggestions');
-    if (p.models.length > 0) {
-      document.getElementById('llm-model').value = p.models[0];
+    const currentModel = document.getElementById('llm-model').value;
+    if (!currentModel || !p.models.includes(currentModel)) {
+      document.getElementById('llm-model').value = p.models[0] || '';
     }
   }
 }
@@ -164,7 +371,6 @@ function openSettings() {
   document.getElementById('settings-modal').style.display = 'flex';
   loadSettings();
 }
-
 function closeSettings() {
   document.getElementById('settings-modal').style.display = 'none';
 }
@@ -177,22 +383,68 @@ async function saveLLMConfig() {
     api_key: document.getElementById('llm-api-key').value,
   };
   const res = await fetch('/api/settings/llm', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(data),
   });
   const result = await res.json();
   document.getElementById('settings-status').textContent = result.status === 'ok' ? '保存成功！' : '保存失败';
 }
 
-// Close modal on outside click
 document.getElementById('settings-modal').onclick = function(e) {
   if (e.target === this) closeSettings();
 };
 
-document.getElementById('upload-btn').onclick = uploadFile;
-document.getElementById('index-btn').onclick = triggerIndex;
-document.getElementById('dehydrate-btn').onclick = triggerDehydrate;
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Export
+let exportBookId = null;
+
+function openExportModal(id, title) {
+  exportBookId = id;
+  document.getElementById('export-title').textContent = `《${title}》`;
+  document.getElementById('export-status').textContent = '';
+  document.getElementById('export-modal').style.display = 'flex';
+}
+
+function closeExportModal() {
+  document.getElementById('export-modal').style.display = 'none';
+}
+
+function doExport(format) {
+  if (!exportBookId) return;
+  const url = `/api/dehydrate/${exportBookId}/export/${format}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.click();
+  setStatus('export-status', '已开始下载', 'success');
+  setTimeout(closeExportModal, 600);
+}
+
+document.getElementById('export-modal').onclick = function(e) {
+  if (e.target === this) closeExportModal();
+};
+
+// Upload area drag effects
+const uploadArea = document.getElementById('upload-area');
+if (uploadArea) {
+  uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+  uploadArea.addEventListener('dragleave', () => { uploadArea.classList.remove('dragover'); });
+  uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault(); uploadArea.classList.remove('dragover');
+    document.getElementById('file-input').files = e.dataTransfer.files;
+    uploadFile();
+  });
+}
+
+bookId = getBookId();
+
+document.getElementById('file-input').addEventListener('change', uploadFile);
+
+loadHistory();
 </script>
 </body>
 </html>

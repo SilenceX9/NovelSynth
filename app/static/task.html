@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务 - AI 网文脱水机</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
+  background: #f5f2eb;
+  min-height: 100vh;
+  color: #2c2c2c;
+}
+
+.container { max-width: 720px; margin: 0 auto; padding: 24px 20px 60px; }
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 32px;
+}
+.topbar h2 { font-size: 20px; font-weight: 600; color: #1a1a1a; }
+.back-link { color: #666; text-decoration: none; font-size: 14px; }
+.back-link:hover { color: #2563eb; }
+
+.card {
+  background: #fff; border-radius: 16px; padding: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+  margin-bottom: 16px;
+}
+
+.book-title {
+  font-size: 22px; font-weight: 700; margin-bottom: 4px;
+}
+.book-meta { font-size: 13px; color: #999; }
+
+/* Task section */
+.task-section { margin-bottom: 16px; }
+.task-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.task-header h3 { font-size: 16px; font-weight: 600; }
+
+.status-badge {
+  padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500;
+}
+.status-running { background: #dbeafe; color: #2563eb; }
+.status-paused { background: #fef3c7; color: #b45309; }
+.status-done { background: #dcfce7; color: #15803d; }
+.status-failed { background: #fee2e2; color: #dc2626; }
+.status-not_started { background: #f3f4f6; color: #6b7280; }
+
+/* Progress bar */
+.progress-bar {
+  height: 8px; background: #f0f0f0; border-radius: 4px;
+  overflow: hidden; position: relative; margin-bottom: 8px;
+}
+.progress-fill {
+  height: 100%; background: linear-gradient(90deg, #2563eb, #7c3aed);
+  border-radius: 4px; transition: width 0.5s ease;
+}
+.progress-info {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 13px; color: #666;
+}
+.progress-step { font-weight: 500; }
+.progress-metrics { font-size: 12px; color: #999; }
+
+/* Task controls */
+.task-controls { display: flex; gap: 8px; margin-top: 16px; }
+
+.btn {
+  padding: 8px 18px; border-radius: 10px; border: none;
+  font-size: 13px; cursor: pointer; font-weight: 500;
+  transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
+}
+.btn-primary { background: #2563eb; color: white; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-secondary { background: #f0eeea; color: #555; }
+.btn-secondary:hover { background: #e5e2dc; }
+.btn-warning { background: #fef3c7; color: #b45309; }
+.btn-warning:hover { background: #fde68a; }
+.btn-danger { background: #fef2f2; color: #dc2626; }
+.btn-danger:hover { background: #fee2e2; }
+.btn-sm { padding: 6px 14px; font-size: 12px; }
+
+/* Processing spinner */
+.processing { display: flex; align-items: center; gap: 10px; color: #2563eb; font-size: 14px; }
+.processing .spinner {
+  width: 18px; height: 18px; border: 2px solid #dbeafe;
+  border-top-color: #2563eb; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Chapter list */
+.chapter-list {
+  max-height: 400px; overflow-y: auto; margin-top: 16px;
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.chapter-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 6px;
+  font-size: 12px; color: #555; background: #f9f9f9;
+  border: 1px solid #eee;
+}
+.chapter-item.done { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
+.chapter-item.current { background: #eff6ff; color: #2563eb; font-weight: 500; border-color: #bfdbfe; }
+.chapter-item .dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.dot-done { background: #15803d; }
+.dot-pending { background: #ddd; }
+.dot-current { background: #2563eb; animation: pulse 1.5s ease infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.status-msg { font-size: 13px; margin-top: 8px; }
+.status-msg.error { color: #dc2626; }
+.status-msg.success { color: #15803d; }
+
+/* Upload area (for append) */
+.upload-area {
+  border: 2px dashed #d0cdc6; border-radius: 12px;
+  padding: 24px; text-align: center; cursor: pointer;
+  transition: all 0.2s; position: relative;
+}
+.upload-area:hover { border-color: #2563eb; background: #f8f7ff; }
+.upload-area.dragover { border-color: #2563eb; background: #eef0ff; }
+.upload-area p { color: #888; font-size: 14px; }
+.upload-area input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+}
+.status { font-size: 13px; margin-top: 12px; color: #666; }
+.status.success { color: #15803d; }
+.status.error { color: #dc2626; }
+
+/* History section */
+#index-history-area, #dehydrate-history-area { margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <a href="/" class="back-link">← 返回首页</a>
+    <h2 id="page-title">任务</h2>
+  </div>
+
+  <div class="card">
+    <div class="book-title" id="book-title">加载中...</div>
+    <div class="book-meta" id="book-meta"></div>
+  </div>
+
+  <!-- Index task -->
+  <div class="card task-section" id="index-task-card" style="display:none">
+    <div class="task-header">
+      <h3>全局索引</h3>
+      <span class="status-badge" id="index-status-badge"></span>
+    </div>
+    <div id="index-progress-area"></div>
+    <div class="task-controls" id="index-controls"></div>
+    <div class="chapter-list" id="index-chapter-list"></div>
+    <div id="index-history-area"></div>
+  </div>
+
+  <!-- Dehydrate task -->
+  <div class="card task-section" id="dehydrate-task-card" style="display:none">
+    <div class="task-header">
+      <h3>智能脱水</h3>
+      <span class="status-badge" id="dehydrate-status-badge"></span>
+    </div>
+    <div id="dehydrate-progress-area"></div>
+    <div class="task-controls" id="dehydrate-controls"></div>
+    <div class="chapter-list" id="dehydrate-chapter-list"></div>
+    <div id="dehydrate-history-area"></div>
+  </div>
+
+  <div id="empty-state" class="card" style="display:none;text-align:center;padding:48px 20px;color:#bbb;">
+    <div style="font-size:40px;margin-bottom:12px">📋</div>
+    <p>暂无进行中的任务</p>
+  </div>
+
+  <!-- Append new text -->
+  <div class="card" id="append-card" style="display:none">
+    <h2 style="font-size:16px;margin-bottom:12px">追加新章节</h2>
+    <p style="font-size:13px;color:#888;margin-bottom:12px">上传续章内容，将追加到原有文本后面，可重新索引/脱水</p>
+    <div class="upload-area" id="append-upload-area">
+      <div style="font-size:24px;opacity:0.5;margin-bottom:8px">📄</div>
+      <p style="font-size:13px;color:#888">拖拽文件或点击选择</p>
+      <p style="font-size:12px;color:#bbb;margin-top:4px">支持 .txt 文件</p>
+      <input type="file" id="append-file-input" accept=".txt" style="position:absolute;inset:0;opacity:0;cursor:pointer">
+    </div>
+    <div id="append-status" class="status"></div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<script>
+let bookId = null;
+let pollTimer = null;
+
+async function loadBookInfo() {
+  const res = await fetch(`/api/tasks/book/${bookId}`);
+  const data = await res.json();
+  document.getElementById('book-title').textContent = data.title;
+  document.getElementById('book-meta').textContent = `共 ${data.total_chapters} 章`;
+
+  // Show index card if task exists, has history, book is indexed, or book has chapters
+  const hasIndexTask = data.index || (data.index_history && data.index_history.length > 0) || data.indexed || data.total_chapters > 0;
+  // Show dehydrate card only after index is done
+  const hasDehydrateTask = data.dehydrate || (data.dehydrate_history && data.dehydrate_history.length > 0) || data.dehydrated || data.indexed;
+
+  document.getElementById('index-task-card').style.display = hasIndexTask ? 'block' : 'none';
+  document.getElementById('dehydrate-task-card').style.display = hasDehydrateTask ? 'block' : 'none';
+
+  if (hasIndexTask) renderIndexTask(data.index, data.total_chapters, data.index_history || [], data.indexed);
+  if (hasDehydrateTask) renderDehydrateTask(data.dehydrate, data.total_chapters, data.dehydrate_history || [], data.dehydrated, data.indexed);
+
+  const empty = document.getElementById('empty-state');
+  empty.style.display = (!hasIndexTask && !hasDehydrateTask) ? 'block' : 'none';
+
+  // Start polling if any task is running
+  const isRunning = (hasIndexTask && data.index && data.index.status === 'running') ||
+                    (hasDehydrateTask && data.dehydrate && data.dehydrate.status === 'running');
+  if (isRunning) {
+    startPolling();
+  } else if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+function renderIndexTask(task, totalChapters, history, isDone) {
+  const badge = document.getElementById('index-status-badge');
+  const area = document.getElementById('index-progress-area');
+  const controls = document.getElementById('index-controls');
+  const chList = document.getElementById('index-chapter-list');
+  const histArea = document.getElementById('index-history-area');
+
+  // No active task, no history, not indexed — fresh book with chapters
+  if (!task && !isDone && history.length === 0) {
+    badge.textContent = '未开始';
+    badge.className = 'status-badge status-not_started';
+    area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#888">共 ${totalChapters} 章，开始索引以构建全局上下文</div>`;
+    controls.innerHTML = `<button onclick="startTask('index')" class="btn btn-sm btn-primary">开始索引</button>`;
+    chList.innerHTML = '';
+  } else if (!task && isDone) {
+    badge.textContent = '已完成';
+    badge.className = 'status-badge status-done';
+    area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#555">索引完成 · ${totalChapters} 章</div>`;
+    controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('index')" class="btn btn-sm btn-secondary">重新索引</button>`;
+    chList.innerHTML = '';
+  } else if (!task) {
+    const lastHist = history[0] || {};
+    badge.textContent = '已完成';
+    badge.className = 'status-badge status-done';
+    area.innerHTML = lastHist.tokens > 0
+      ? `<div style="padding:8px 0;font-size:14px;color:#555">已处理 ${lastHist.total || totalChapters} 章 · 消耗 ${formatTokens(lastHist.tokens)} tokens · 耗时 ${formatElapsed(lastHist.elapsed)}</div>`
+      : '';
+    controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('dehydrate')" class="btn btn-sm btn-secondary">开始脱水</button>`;
+    chList.innerHTML = '';
+  } else {
+    badge.textContent = statusLabel(task.status);
+    badge.className = `status-badge status-${task.status}`;
+
+    const pct = totalChapters > 0 ? Math.round(task.current / totalChapters * 100) : 0;
+    area.innerHTML = `
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="progress-info">
+        <span class="progress-step">${escHtml(task.step || '准备中')}</span>
+        <span class="progress-metrics">${task.current}/${totalChapters} 章</span>
+      </div>
+      ${task.tokens > 0 ? `<div style="margin-top:6px;font-size:12px;color:#999">已消耗 ${formatTokens(task.tokens)} tokens · ${formatElapsed(task.elapsed)}</div>` : ''}
+    `;
+
+    if (task.status === 'running') {
+      controls.innerHTML = `<button onclick="pauseTask('index')" class="btn btn-sm btn-warning">⏸ 暂停</button>`;
+    } else if (task.status === 'paused') {
+      controls.innerHTML = `<button onclick="resumeTask('index')" class="btn btn-sm btn-primary">▶ 继续</button>`;
+    } else if (task.status === 'failed') {
+      controls.innerHTML = `<button onclick="startTask('index')" class="btn btn-sm btn-primary">重试</button>`;
+    } else if (task.status === 'done') {
+      controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('index')" class="btn btn-sm btn-secondary">重新索引</button>`;
+    } else {
+      controls.innerHTML = '';
+    }
+
+    chList.innerHTML = buildChapterList(task.completed || [], totalChapters, task.current);
+  }
+
+  renderHistory(histArea, history);
+}
+
+function renderDehydrateTask(task, totalChapters, history, isDone, isIndexed) {
+  const badge = document.getElementById('dehydrate-status-badge');
+  const area = document.getElementById('dehydrate-progress-area');
+  const controls = document.getElementById('dehydrate-controls');
+  const chList = document.getElementById('dehydrate-chapter-list');
+  const histArea = document.getElementById('dehydrate-history-area');
+
+  // Index not done yet — dehydrate not available
+  if (!task && !isDone && history.length === 0 && !isIndexed) {
+    badge.textContent = '等待索引';
+    badge.className = 'status-badge status-not_started';
+    area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#888">请先完成全局索引后再开始脱水</div>`;
+    controls.innerHTML = '';
+    chList.innerHTML = '';
+  } else if (!task && isDone) {
+    badge.textContent = '已完成';
+    badge.className = 'status-badge status-done';
+    area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#555">脱水完成 · ${totalChapters} 章</div>`;
+    controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
+    chList.innerHTML = '';
+  } else if (!task) {
+    const lastHist = history[0] || {};
+    badge.textContent = '已完成';
+    badge.className = 'status-badge status-done';
+    area.innerHTML = lastHist.tokens > 0
+      ? `<div style="padding:8px 0;font-size:14px;color:#555">已处理 ${lastHist.total || totalChapters} 章 · 消耗 ${formatTokens(lastHist.tokens)} tokens · 耗时 ${formatElapsed(lastHist.elapsed)}</div>`
+      : '';
+    controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
+    chList.innerHTML = '';
+  } else {
+    badge.textContent = statusLabel(task.status);
+    badge.className = `status-badge status-${task.status}`;
+
+    const pct = totalChapters > 0 ? Math.round(task.current / totalChapters * 100) : 0;
+    area.innerHTML = `
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="progress-info">
+        <span class="progress-step">${escHtml(task.step || '准备中')}</span>
+        <span class="progress-metrics">${task.current}/${totalChapters} 章</span>
+      </div>
+      ${task.tokens > 0 ? `<div style="margin-top:6px;font-size:12px;color:#999">已消耗 ${formatTokens(task.tokens)} tokens · ${formatElapsed(task.elapsed)}</div>` : ''}
+    `;
+
+    if (task.status === 'running') {
+      controls.innerHTML = `<button onclick="pauseTask('dehydrate')" class="btn btn-sm btn-warning">⏸ 暂停</button>`;
+    } else if (task.status === 'paused') {
+      controls.innerHTML = `<button onclick="resumeTask('dehydrate')" class="btn btn-sm btn-primary">▶ 继续</button>`;
+    } else if (task.status === 'failed') {
+      controls.innerHTML = `<button onclick="startTask('dehydrate')" class="btn btn-sm btn-primary">重试</button>`;
+    } else if (task.status === 'done') {
+      controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
+    } else {
+      controls.innerHTML = '';
+    }
+
+    chList.innerHTML = buildChapterList(task.completed || [], totalChapters, task.current);
+  }
+
+  renderHistory(histArea, history);
+}
+
+function renderHistory(container, history) {
+  if (!history || history.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  let html = '<div style="margin-top:16px;padding-top:12px;border-top:1px solid #f0f0f0"><div style="font-size:13px;font-weight:600;color:#999;margin-bottom:8px">历史记录</div>';
+  for (const h of history) {
+    const statusText = statusLabel(h.status);
+    const badgeCls = h.status === 'done' ? 'status-done' : h.status === 'failed' ? 'status-failed' : 'status-not_started';
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:13px">
+      <span style="color:#666">第 ${h.total || '?'} 章 · ${formatTokens(h.tokens)} tokens · ${formatElapsed(h.elapsed)}</span>
+      <span style="display:flex;align-items:center;gap:8px">
+        <span class="status-badge ${badgeCls}">${statusText}</span>
+        ${h.status === 'done' ? `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-secondary" style="text-decoration:none">查看详情</a>` : ''}
+      </span>
+    </div>`;
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function formatTokens(n) {
+  if (!n) return '0';
+  return n.toLocaleString();
+}
+
+function formatElapsed(seconds) {
+  if (!seconds) return '0s';
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}m${s}s`;
+}
+
+function buildChapterList(completed, total, current) {
+  const completedSet = new Set(completed);
+  let html = '';
+
+  for (let i = 0; i < total; i++) {
+    const isDone = completedSet.has(i);
+    const isCurrent = i + 1 === current;
+    const cls = isDone ? 'done' : isCurrent ? 'current' : '';
+    const dotCls = isDone ? 'dot-done' : isCurrent ? 'dot-current' : 'dot-pending';
+    html += `<div class="chapter-item ${cls}">
+      <span class="dot ${dotCls}"></span>
+      <span>${i+1}</span>
+      ${isDone ? '<span style="margin-left:auto;font-size:10px">✓</span>' : ''}
+    </div>`;
+  }
+  return html;
+}
+
+function statusLabel(status) {
+  const map = {
+    'running': '进行中',
+    'paused': '已暂停',
+    'done': '已完成',
+    'failed': '失败',
+    'pending': '等待中',
+    'not_started': '未开始',
+  };
+  return map[status] || status;
+}
+
+async function startTask(type) {
+  const endpoint = type === 'index' ? `/api/index/${bookId}/start` : `/api/dehydrate/${bookId}/start`;
+  await fetch(endpoint, { method: 'POST' });
+  startPolling();
+  loadBookInfo();
+}
+
+async function pauseTask(type) {
+  const endpoint = type === 'index' ? `/api/index/${bookId}/pause` : `/api/dehydrate/${bookId}/pause`;
+  await fetch(endpoint, { method: 'POST' });
+  loadBookInfo();
+}
+
+async function resumeTask(type) {
+  const endpoint = type === 'index' ? `/api/index/${bookId}/resume` : `/api/dehydrate/${bookId}/resume`;
+  await fetch(endpoint, { method: 'POST' });
+  startPolling();
+  loadBookInfo();
+}
+
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(() => {
+    loadBookInfo();
+  }, 10000);
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// Init
+const params = new URLSearchParams(window.location.search);
+bookId = params.get('book_id') || getBookId();
+if (!bookId) {
+  document.getElementById('page-title').textContent = '未找到任务';
+} else {
+  setBookId(bookId);
+  loadBookInfo();
+}
+
+// Append upload
+document.getElementById('append-card').style.display = 'block';
+
+const appendArea = document.getElementById('append-upload-area');
+const appendInput = document.getElementById('append-file-input');
+
+async function doAppendUpload() {
+  const file = appendInput.files[0];
+  if (!file) return;
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  const statusEl = document.getElementById('append-status');
+  statusEl.textContent = '上传中...';
+  statusEl.className = 'status';
+
+  try {
+    const res = await fetch(`/api/books/${bookId}/append`, { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json();
+      statusEl.textContent = `上传失败: ${err.detail || '未知错误'}`;
+      statusEl.className = 'status error';
+      return;
+    }
+
+    const data = await res.json();
+    if (data.new_chapters === 0) {
+      statusEl.textContent = '所有章节已存在，无需追加';
+      statusEl.className = 'status';
+      return;
+    }
+
+    statusEl.textContent = `追加成功！新增 ${data.new_chapters} 章，重新索引中...`;
+    statusEl.className = 'status success';
+
+    // Auto-start incremental re-index
+    await startTask('index');
+
+    // After index completes, auto-start dehydrate
+    const pollIndex = setInterval(async () => {
+      const r = await fetch(`/api/index/${bookId}/status`);
+      const d = await r.json();
+      if (d.status === 'done') {
+        clearInterval(pollIndex);
+        statusEl.textContent = '索引完成，开始脱水...';
+        await startTask('dehydrate');
+      } else if (d.status === 'failed') {
+        clearInterval(pollIndex);
+        statusEl.textContent = '索引失败';
+        statusEl.className = 'status error';
+      }
+    }, 3000);
+  } catch (e) {
+    statusEl.textContent = `上传失败: ${e.message}`;
+    statusEl.className = 'status error';
+  }
+}
+
+appendInput.addEventListener('change', doAppendUpload);
+
+appendArea.addEventListener('dragover', (e) => { e.preventDefault(); appendArea.classList.add('dragover'); });
+appendArea.addEventListener('dragleave', () => { appendArea.classList.remove('dragover'); });
+appendArea.addEventListener('drop', (e) => {
+  e.preventDefault(); appendArea.classList.remove('dragover');
+  appendInput.files = e.dataTransfer.files;
+  doAppendUpload();
+});
+</script>
+</body>
+</html>

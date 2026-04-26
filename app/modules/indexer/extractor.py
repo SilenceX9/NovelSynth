@@ -16,12 +16,12 @@ EXTRACT_PROMPT = """你是一个网文分析助手。阅读以下小说章节，
 4. 关键道具：有特殊功能的物品
 
 只输出 JSON，不要输出任何其他内容：
-{
-  "characters": [{"name": "角色名", "role": "主角/配角/反派/其他", "relationships": ["关系描述"], "chapters": [章节号]}],
+{{
+  "characters": [{{"name": "角色名", "role": "主角/配角/反派/其他", "relationships": ["关系描述"], "chapters": [章节号]}}],
   "plot": ["第1章：一句话概括", "第2章：一句话概括"],
-  "foreshadows": [{"description": "伏笔描述", "chapters": [章节号]}],
+  "foreshadows": [{{"description": "伏笔描述", "chapters": [章节号]}}],
   "key_items": ["道具名"]
-}
+}}
 
 以下是第 {start}-{end} 章的内容：
 
@@ -29,7 +29,7 @@ EXTRACT_PROMPT = """你是一个网文分析助手。阅读以下小说章节，
 """
 
 
-async def extract_batch(chapters: list[dict], batch_start: int, batch_end: int) -> PartialContext:
+async def extract_batch(chapters: list[dict], batch_start: int, batch_end: int, book_id: str = "") -> PartialContext:
     batch = chapters[batch_start:batch_end]
     chapter_texts = "\n\n---\n\n".join(
         f"第{ch['number']}章 {ch['title']}\n{ch['text']}" for ch in batch

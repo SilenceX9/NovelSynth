@@ -38,3 +38,5 @@ class IndexResponse(BaseModel):
     context: Optional[GlobalContext] = None
     status: str  # "completed" / "failed"
     error: Optional[str] = None
+    tokens: int = 0
+    elapsed: float = 0.0

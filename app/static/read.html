@@ -3,55 +3,698 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>阅读器 - AI 网文脱水机</title>
-<link rel="stylesheet" href="/app.css">
+<title id="page-title">阅读器</title>
 <style>
-.reader-layout { display: flex; gap: 20px; height: calc(100vh - 80px); }
-.reader-main { flex: 1; overflow-y: auto; padding: 20px; background: #faf8f5; line-height: 2; font-size: 16px; white-space: pre-wrap; font-family: "Source Han Serif", "Noto Serif SC", serif; }
-.reader-sidebar { width: 320px; display: flex; flex-direction: column; border-left: 1px solid #e0e0e0; }
-.qa-input { padding: 12px; border-bottom: 1px solid #e0e0e0; }
-.qa-input textarea { width: 100%; height: 60px; border: 1px solid #d0d0d0; border-radius: 6px; padding: 8px; resize: none; font-size: 14px; }
-.qa-input button { margin-top: 6px; }
-.qa-history { flex: 1; overflow-y: auto; padding: 12px; }
-.qa-item { margin-bottom: 16px; padding: 10px; background: #f5f5f5; border-radius: 6px; }
-.qa-item .question { font-weight: bold; margin-bottom: 6px; }
-.qa-item .answer { line-height: 1.7; font-size: 14px; }
-.qa-item .source { font-size: 12px; color: #888; margin-top: 4px; }
+:root {
+  --bg: #faf7f2;
+  --text: #2c2c2c;
+  --text-secondary: #888;
+  --sidebar-bg: #fff;
+  --note-bg: #f4f1ea;
+  --note-border: #d8d2c4;
+  --note-text: #6b5b3a;
+  --accent: #c4956a;
+  --sidebar-width: 360px;
+  --reader-max: 680px;
+  --topbar-h: 56px;
+  --chapter-sidebar-w: 280px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* ===== Top bar ===== */
+.topbar {
+  height: var(--topbar-h);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  background: rgba(250,247,242,0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  position: relative; z-index: 50;
+}
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.topbar-left h1 { font-size: 15px; font-weight: 600; }
+.topbar-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: none; background: transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary); font-size: 18px;
+  transition: background 0.15s;
+}
+.topbar-btn:hover { background: rgba(0,0,0,0.06); }
+.topbar-actions { display: flex; gap: 4px; }
+
+/* ===== Chapter Sidebar (left) ===== */
+.chapter-sidebar {
+  width: var(--chapter-sidebar-w);
+  position: fixed; left: 0; top: var(--topbar-h); bottom: 0;
+  background: var(--sidebar-bg);
+  border-right: 1px solid rgba(0,0,0,0.06);
+  z-index: 45;
+  display: flex; flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+}
+.chapter-sidebar.open { transform: translateX(0); }
+
+.chapter-sidebar-header {
+  padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid rgba(0,0,0,0.06); flex-shrink: 0;
+}
+.chapter-sidebar-header h3 { font-size: 14px; font-weight: 600; }
+.chapter-sidebar-header .close-btn {
+  background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 16px;
+}
+
+.chapter-list {
+  flex: 1; overflow-y: auto; padding: 8px 0;
+}
+.chapter-item {
+  display: block; width: 100%; padding: 10px 16px;
+  text-align: left; background: none; border: none;
+  font-size: 13px; color: var(--text); cursor: pointer;
+  transition: background 0.1s; font-family: inherit;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chapter-item:hover { background: #f5f2eb; }
+.chapter-item.active { background: #eef0ff; color: #2563eb; font-weight: 600; }
+
+/* Floating chapter button inside reader */
+.chapter-float-btn {
+  position: sticky; top: 16px; z-index: 10;
+  display: block; margin: 0 auto 24px;
+  padding: 6px 16px; border-radius: 16px;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(0,0,0,0.08);
+  font-size: 12px; color: var(--text-secondary);
+  cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.chapter-float-btn:hover { background: #fff; color: var(--text); }
+
+/* Overlay when chapter sidebar is open */
+.sidebar-overlay {
+  position: fixed; inset: 0; top: var(--topbar-h);
+  background: rgba(0,0,0,0.2); z-index: 44;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.sidebar-overlay.visible { opacity: 1; pointer-events: auto; }
+
+/* ===== Layout ===== */
+.reader-layout {
+  display: flex; height: calc(100vh - var(--topbar-h));
+}
+
+/* ===== Reader ===== */
+.reader-main {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  scroll-behavior: smooth;
+  transition: margin-left 0.25s ease;
+}
+.reader-main.shifted { margin-left: var(--chapter-sidebar-w); }
+.reader-inner {
+  max-width: var(--reader-max);
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+}
+
+/* Keep (original text) */
+.block-keep {
+  font-family: "Source Han Serif SC", "Noto Serif SC", "STSong", "Songti SC", serif;
+  font-size: 17px; line-height: 2; color: var(--text);
+  margin-bottom: 20px; white-space: pre-wrap;
+  text-align: justify;
+}
+
+/* Note group */
+.note-group {
+  background: var(--note-bg);
+  border-radius: 10px;
+  padding: 6px 18px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--note-border);
+}
+.note-group-header {
+  font-size: 12px; color: #999; font-weight: 500;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  margin-bottom: 2px;
+  user-select: none;
+  display: flex; align-items: center; gap: 6px;
+}
+.note-group-header .count { color: var(--accent); font-weight: 600; }
+.note-group-header .hint { font-size: 11px; color: #bbb; margin-left: auto; }
+
+.note-item {
+  cursor: pointer;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  transition: background 0.15s;
+}
+.note-item:last-child { border-bottom: none; }
+.note-item:hover { background: rgba(0,0,0,0.02); margin: 0 -18px; padding-left: 18px; padding-right: 18px; border-radius: 6px; }
+
+.note-label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--accent);
+  font-weight: 600; margin-bottom: 4px; user-select: none;
+}
+.note-label .arrow {
+  display: inline-block; transition: transform 0.2s;
+  font-size: 10px; opacity: 0.7;
+}
+.note-item.expanded .note-label .arrow { transform: rotate(90deg); }
+
+.note-text {
+  font-size: 14px; color: var(--note-text);
+  line-height: 1.7; font-style: italic;
+}
+.note-original {
+  display: none;
+  margin-top: 12px; padding: 14px 16px;
+  background: #fff; border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.06);
+  font-family: "Source Han Serif SC", "Noto Serif SC", "STSong", serif;
+  font-size: 15px; line-height: 1.9; color: #444;
+  white-space: pre-wrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.note-item.expanded .note-original {
+  display: block;
+  animation: fadeIn 0.2s ease;
+}
+
+/* Single summarize */
+.single-summarize {
+  background: var(--note-bg);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  border: 1px solid var(--note-border);
+  transition: background 0.15s;
+}
+.single-summarize:hover { background: #efe9df; }
+.single-summarize .note-label { margin-bottom: 4px; }
+.single-summarize .note-text { font-size: 14px; color: var(--note-text); line-height: 1.7; font-style: italic; }
+.single-summarize .note-original {
+  display: none; margin-top: 12px; padding: 14px 16px;
+  background: #fff; border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.06);
+  font-family: "Source Han Serif SC", "Noto Serif SC", "STSong", serif;
+  font-size: 15px; line-height: 1.9; color: #444; white-space: pre-wrap;
+}
+.single-summarize.expanded .note-original {
+  display: block; animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===== Sidebar ===== */
+.reader-sidebar {
+  width: var(--sidebar-width);
+  border-left: 1px solid rgba(0,0,0,0.06);
+  display: flex; flex-direction: column;
+  background: var(--sidebar-bg);
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+.reader-sidebar.collapsed {
+  transform: translateX(100%);
+  width: 0; min-width: 0; overflow: hidden;
+}
+.sidebar-toggle {
+  position: fixed; right: 12px; top: calc(var(--topbar-h) + 12px);
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(0,0,0,0.08);
+  cursor: pointer; font-size: 14px; color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 40; transition: all 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.sidebar-toggle:hover { background: #fff; color: var(--text); }
+
+.qa-header {
+  padding: 16px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.qa-header h3 { font-size: 14px; font-weight: 600; }
+
+.qa-input-area { padding: 12px 16px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.qa-input-area textarea {
+  width: 100%; height: 64px; border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px; padding: 10px 12px; resize: none;
+  font-size: 14px; font-family: inherit; line-height: 1.5;
+  transition: border-color 0.2s; background: #faf8f5;
+}
+.qa-input-area textarea:focus { outline: none; border-color: var(--accent); }
+.qa-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+.qa-btn {
+  padding: 6px 16px; border-radius: 6px; border: none;
+  font-size: 13px; cursor: pointer; font-weight: 500;
+  background: var(--accent); color: #fff; transition: opacity 0.15s;
+}
+.qa-btn:hover { opacity: 0.85; }
+
+.qa-history { flex: 1; overflow-y: auto; padding: 12px 16px; }
+.qa-item {
+  margin-bottom: 14px; padding: 14px;
+  background: #faf8f5; border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.04);
+}
+.qa-item .question { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+.qa-item .answer { font-size: 14px; color: #555; line-height: 1.7; }
+.qa-item .source { font-size: 12px; color: #aaa; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.06); }
+
+/* ===== Settings Modal ===== */
+.modal {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-content {
+  background: #fff; border-radius: 16px; width: 420px;
+  max-width: 90vw; box-shadow: 0 24px 60px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+.modal-header {
+  padding: 20px 24px 16px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid #f0f0f0;
+}
+.modal-header h3 { font-size: 16px; }
+.close-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #999; }
+.modal-body { padding: 20px 24px 24px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+.form-group input, .form-group select {
+  width: 100%; padding: 9px 12px; border: 1.5px solid #e0e0e0;
+  border-radius: 8px; font-size: 14px; font-family: inherit;
+}
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+.status { font-size: 13px; margin-top: 8px; color: #666; }
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d0cdc6; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #b5b1a8; }
+
+/* ===== Loading ===== */
+.loading-dots::after { content: ''; animation: dots 1.5s steps(4,end) infinite; }
+@keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .reader-sidebar { display: none; }
+  .reader-inner { padding: 24px 16px 60px; }
+  .block-keep { font-size: 16px; line-height: 1.9; }
+  .chapter-sidebar { width: 85vw; max-width: 320px; }
+  .reader-main.shifted { margin-left: 0; }
+}
 </style>
 </head>
 <body>
-<div class="container" style="max-width:100%;padding:0 20px">
-  <div class="header-bar">
-    <h2 style="margin:0">阅读器</h2>
-    <div style="display:flex;gap:8px">
-      <button onclick="openSettings()" class="btn btn-secondary" style="font-size:13px">⚙️ LLM</button>
-      <a href="/" class="btn btn-secondary" style="font-size:13px">返回首页</a>
-    </div>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <a href="/" class="topbar-btn" title="返回首页">←</a>
+    <h1 id="book-title">阅读器</h1>
   </div>
-  <div class="reader-layout">
-    <div class="reader-main" id="reader-content">
-      <p class="placeholder">点击"加载脱水版"开始阅读</p>
-      <button onclick="loadDehydrated()" class="btn btn-primary" style="margin:20px auto;display:block">加载脱水版</button>
+  <div class="topbar-actions">
+    <button class="topbar-btn" onclick="openSettings()" title="设置">⚙</button>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleChapterSidebar()"></div>
+
+<div class="chapter-sidebar" id="chapter-sidebar">
+  <div class="chapter-sidebar-header">
+    <h3>目录</h3>
+    <button onclick="toggleChapterSidebar()" class="close-btn">✕</button>
+  </div>
+  <div class="chapter-list" id="chapter-list"></div>
+</div>
+
+<div class="reader-layout">
+  <div class="reader-main" id="reader-main">
+    <div class="reader-inner" id="reader-inner">
+      <button class="chapter-float-btn" id="chapter-float-btn" onclick="toggleChapterSidebar()" title="章节目录">目录</button>
+      <div class="placeholder-state" id="placeholder" style="text-align:center;padding:80px 20px;color:#ccc;">
+        <div style="font-size:40px;margin-bottom:12px">📖</div>
+        <p>加载中...</p>
+      </div>
       <div id="text-body" style="display:none"></div>
     </div>
-    <div class="reader-sidebar">
-      <div class="qa-input">
-        <textarea id="qa-question" placeholder="提问关于这本书的问题..."></textarea>
-        <button onclick="askQuestion()" class="btn btn-primary" style="width:100%">提问</button>
+  </div>
+
+  <div class="reader-sidebar" id="sidebar">
+    <div class="qa-header">
+      <h3>问答</h3>
+      <button onclick="toggleSidebar()" style="background:none;border:none;cursor:pointer;color:#999;font-size:16px">✕</button>
+    </div>
+    <div class="qa-input-area">
+      <textarea id="qa-question" placeholder="提问关于这本书的问题..."></textarea>
+      <div class="qa-actions">
+        <button onclick="askQuestion()" class="qa-btn">提问</button>
       </div>
-      <div class="qa-history" id="qa-history"></div>
+    </div>
+    <div class="qa-history" id="qa-history"></div>
+  </div>
+</div>
+
+<button class="sidebar-toggle" id="toggle-btn" onclick="toggleSidebar()" style="display:none">💬</button>
+
+<!-- Settings Modal -->
+<div id="settings-modal" class="modal" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header"><h3>LLM 配置</h3><button onclick="closeSettings()" class="close-btn">&times;</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>平台</label><select id="llm-provider" onchange="onProviderChange()"><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option><option value="deepseek">DeepSeek</option><option value="dashscope">阿里百炼</option><option value="custom">自定义</option></select></div>
+      <div class="form-group"><label>API 地址</label><input type="text" id="llm-base-url" placeholder="https://..."></div>
+      <div class="form-group"><label>模型</label><input type="text" id="llm-model" placeholder="模型名称"><datalist id="model-suggestions"></datalist></div>
+      <div class="form-group"><label>API Key</label><input type="password" id="llm-api-key" placeholder="sk-..."></div>
+      <button onclick="saveLLMConfig()" class="qa-btn" style="width:100%">保存</button>
+      <div id="settings-status" class="status"></div>
     </div>
   </div>
 </div>
 
 <script src="/app.js"></script>
 <script>
-// Settings modal (same as index.html)
 let llmProviders = {};
+let sidebarOpen = true;
+let chapterSidebarOpen = false;
+let chapters = [];
+
+function getCurrentBookId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('book_id') || getBookId();
+}
+
+// Toggle chapter sidebar
+function toggleChapterSidebar() {
+  chapterSidebarOpen = !chapterSidebarOpen;
+  document.getElementById('chapter-sidebar').classList.toggle('open', chapterSidebarOpen);
+  document.getElementById('sidebar-overlay').classList.toggle('visible', chapterSidebarOpen);
+  document.getElementById('reader-main').classList.toggle('shifted', chapterSidebarOpen);
+}
+
+// Toggle right sidebar
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('collapsed', !sidebarOpen);
+  document.getElementById('toggle-btn').style.display = sidebarOpen ? 'none' : 'flex';
+}
+
+// Toggle note expand
+function toggleNote(el) {
+  el.classList.toggle('expanded');
+}
+
+function toggleNoteGroup(el) {
+  const group = el.closest('.note-group');
+  if (group) {
+    group.querySelectorAll('.note-item.expanded').forEach(item => {
+      if (item !== el) item.classList.remove('expanded');
+    });
+  }
+  el.classList.toggle('expanded');
+}
+
+// ---- Chapter navigation ----
+
+async function loadChapters() {
+  const bookId = getCurrentBookId();
+  if (!bookId) return;
+  try {
+    const res = await fetch(`/api/dehydrate/${bookId}/chapters`);
+    if (res.ok) {
+      const data = await res.json();
+      chapters = data.chapters || [];
+      renderChapterList();
+    }
+  } catch(e) {}
+}
+
+function renderChapterList() {
+  const el = document.getElementById('chapter-list');
+  if (!chapters.length) {
+    el.innerHTML = '<div style="padding:16px;color:#999;font-size:13px;text-align:center">暂无章节</div>';
+    return;
+  }
+  el.innerHTML = chapters.map((ch, i) =>
+    `<button class="chapter-item" data-index="${i}" onclick="jumpToChapter(${i})">${escHtml(ch.title)}</button>`
+  ).join('');
+}
+
+function jumpToChapter(index) {
+  const el = document.getElementById(`chapter-anchor-${index}`);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  if (chapterSidebarOpen) toggleChapterSidebar();
+}
+
+function updateActiveChapter() {
+  if (!chapters.length) return;
+  const main = document.getElementById('reader-main');
+  const containerTop = main.getBoundingClientRect().top;
+  let activeIdx = 0;
+
+  // Check all chapter anchors to find the one closest to top
+  for (let i = chapters.length - 1; i >= 0; i--) {
+    const anchor = document.getElementById(`chapter-anchor-${i}`);
+    if (anchor) {
+      const rect = anchor.getBoundingClientRect();
+      if (rect.top <= containerTop + 80) {
+        activeIdx = i;
+        break;
+      }
+    }
+  }
+
+  const items = document.querySelectorAll('.chapter-item');
+  items.forEach((item, i) => {
+    item.classList.toggle('active', i === activeIdx);
+  });
+
+  // Auto-scroll sidebar to keep active chapter visible
+  const activeItem = items[activeIdx];
+  if (activeItem) {
+    const list = document.getElementById('chapter-list');
+    const itemTop = activeItem.offsetTop;
+    const itemBottom = itemTop + activeItem.offsetHeight;
+    if (itemTop < list.scrollTop || itemBottom > list.scrollTop + list.clientHeight) {
+      activeItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+}
+
+// Click outside to close all notes
+document.addEventListener('click', function(e) {
+  const body = document.getElementById('text-body');
+  if (!body || body.style.display === 'none') return;
+  if (!e.target.closest('.note-item') && !e.target.closest('.single-summarize')) {
+    body.querySelectorAll('.expanded').forEach(el => el.classList.remove('expanded'));
+  }
+});
+
+// Render structured blocks
+function renderStructured(blocks) {
+  const el = document.getElementById('text-body');
+  let html = '';
+  let groupBuffer = [];
+
+  function flushGroup() {
+    if (groupBuffer.length === 0) return;
+
+    // Check if this group starts a new chapter
+    const firstBlock = groupBuffer[0];
+    if (firstBlock._isNewChapter && firstBlock._chapter !== undefined && firstBlock._chapter >= 0) {
+      html += `<span id="chapter-anchor-${firstBlock._chapter}" data-chapter="${firstBlock._chapter}" style="display:block;position:relative;top:-80px"></span>`;
+    }
+
+    if (groupBuffer.length === 1) {
+      const b = groupBuffer[0];
+      html += `<div class="single-summarize" onclick="event.stopPropagation();toggleNote(this)">
+        <div class="note-label"><span class="arrow">▶</span> 【注：已省略 ${b.original ? b.original.length : 0} 字】</div>
+        <div class="note-text">${escHtml(b.text)}</div>
+        ${b.original ? `<div class="note-original">${escHtml(b.original)}</div>` : ''}
+      </div>`;
+    } else {
+      let totalOmitted = groupBuffer.reduce((s, b) => s + (b.original ? b.original.length : 0), 0);
+      html += `<div class="note-group">
+        <div class="note-group-header">
+          <span class="count">${groupBuffer.length}</span> 段省略 · 共 ${totalOmitted} 字
+          <span class="hint">点击展开原文</span>
+        </div>`;
+      groupBuffer.forEach(b => {
+        html += `<div class="note-item" onclick="event.stopPropagation();toggleNoteGroup(this)">
+          <div class="note-label"><span class="arrow">▶</span> 【注：已省略 ${b.original ? b.original.length : 0} 字】</div>
+          <div class="note-text">${escHtml(b.text)}</div>
+          ${b.original ? `<div class="note-original">${escHtml(b.original)}</div>` : ''}
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    groupBuffer = [];
+  }
+
+  // Detect chapter boundaries from block data
+  // Blocks from the API have a "chapter" field added by the backend
+  // Track which chapter each block belongs to, so we can add markers
+  let prevChapter = -1;
+
+  blocks.forEach((b, bi) => {
+    const chIdx = b.chapter;
+    const isNewChapter = chIdx !== undefined && chIdx >= 0 && chIdx !== prevChapter;
+
+    if (b.layer === 'keep') {
+      flushGroup();
+      // Add invisible chapter anchor before first block of each chapter
+      if (isNewChapter) {
+        html += `<span id="chapter-anchor-${chIdx}" data-chapter="${chIdx}" style="display:block;position:relative;top:-80px"></span>`;
+      }
+      html += `<div class="block-keep">${escHtml(b.text)}</div>`;
+      prevChapter = chIdx !== undefined ? chIdx : prevChapter;
+    } else if (b.layer === 'summarize') {
+      groupBuffer.push({...b, _chapter: chIdx, _isNewChapter: isNewChapter});
+      prevChapter = chIdx !== undefined ? chIdx : prevChapter;
+    }
+  });
+  flushGroup();
+
+  el.innerHTML = html;
+  el.style.display = 'block';
+  document.getElementById('placeholder').style.display = 'none';
+
+  // Restore saved reading position
+  restoreReadingPosition();
+
+  // Setup scroll listener for chapter tracking and position saving
+  const readerMain = document.getElementById('reader-main');
+  readerMain.removeEventListener('scroll', onReaderScroll);
+  readerMain.addEventListener('scroll', onReaderScroll, { passive: true });
+}
+
+// Combined scroll handler: chapter tracking + position saving
+function onReaderScroll() {
+  updateActiveChapter();
+  saveReadingPosition();
+}
+
+// Reading position persistence
+function saveReadingPosition() {
+  const bookId = getCurrentBookId();
+  if (!bookId) return;
+  const main = document.getElementById('reader-main');
+  if (!main) return;
+  try {
+    localStorage.setItem(`read_pos_${bookId}`, JSON.stringify({
+      scrollTop: main.scrollTop,
+      timestamp: Date.now()
+    }));
+  } catch(e) {}
+}
+
+function restoreReadingPosition() {
+  const bookId = getCurrentBookId();
+  if (!bookId) return;
+  try {
+    const data = JSON.parse(localStorage.getItem(`read_pos_${bookId}`));
+    if (data && data.scrollTop > 0) {
+      const main = document.getElementById('reader-main');
+      if (main) {
+        main.scrollTop = data.scrollTop;
+      }
+    }
+  } catch(e) {}
+}
+
+// Load content on page open
+async function loadContent() {
+  const bookId = getCurrentBookId();
+  if (!bookId) {
+    document.getElementById('placeholder').innerHTML = '<p style="color:#aaa">未找到书籍，请先在首页上传</p>';
+    return;
+  }
+
+  try {
+    // Load chapter list in parallel
+    loadChapters();
+
+    const res = await fetch(`/api/dehydrate/${bookId}/structured`);
+    if (res.ok) {
+      const data = await res.json();
+      renderStructured(data.blocks);
+      return;
+    }
+  } catch(e) {}
+
+  // Fallback: plain text
+  const res2 = await fetch(`/api/dehydrate/${bookId}/output`);
+  if (res2.ok) {
+    const data2 = await res2.json();
+    renderStructured([
+      { layer: 'keep', text: data2.text, original: null }
+    ]);
+    return;
+  }
+
+  document.getElementById('placeholder').innerHTML = '<p style="color:#aaa">脱水版不存在，请先完成脱水</p>';
+}
+
+async function askQuestion() {
+  const input = document.getElementById('qa-question');
+  const question = input.value.trim();
+  if (!question) return;
+  const bookId = getCurrentBookId();
+  if (!bookId) return alert('未找到 book_id');
+
+  const history = document.getElementById('qa-history');
+  const loadingItem = document.createElement('div');
+  loadingItem.className = 'qa-item';
+  loadingItem.innerHTML = `<div class="question">${escHtml(question)}</div><div class="answer loading-dots">思考中</div>`;
+  history.prepend(loadingItem);
+
+  const res = await fetch('/api/qa/ask', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({book_id: bookId, question})
+  });
+  const data = await res.json();
+
+  loadingItem.innerHTML = `
+    <div class="question">${escHtml(question)}</div>
+    <div class="answer">${escHtml(data.answer)}</div>
+    ${data.source_chapters.length ? `<div class="source">参考章节：${data.source_chapters.map(c => '第'+c+'章').join('、')}</div>` : ''}
+  `;
+  input.value = '';
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Settings
 function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; loadSettings(); }
 function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
 async function loadSettings() {
-  const res = await fetch('/api/settings/ll');
+  const res = await fetch('/api/settings/llm');
   const data = await res.json();
   llmProviders = data.providers;
   const cfg = data.current;
@@ -68,7 +711,10 @@ function onProviderChange() {
     document.getElementById('llm-base-url').value = p.base_url;
     document.getElementById('model-suggestions').innerHTML = p.models.map(m => `<option value="${m}">`).join('');
     document.getElementById('llm-model').setAttribute('list', 'model-suggestions');
-    if (p.models.length > 0) document.getElementById('llm-model').value = p.models[0];
+    const currentModel = document.getElementById('llm-model').value;
+    if (!currentModel || !p.models.includes(currentModel)) {
+      document.getElementById('llm-model').value = p.models[0] || '';
+    }
   }
 }
 async function saveLLMConfig() {
@@ -78,62 +724,9 @@ async function saveLLMConfig() {
   document.getElementById('settings-status').textContent = result.status === 'ok' ? '保存成功！' : '保存失败';
 }
 document.getElementById('settings-modal').onclick = function(e) { if (e.target === this) closeSettings(); };
-</script>
 
-<!-- Settings Modal -->
-<div id="settings-modal" class="modal" style="display:none">
-  <div class="modal-content">
-    <div class="modal-header"><h3>LLM 配置</h3><button onclick="closeSettings()" class="close-btn">&times;</button></div>
-    <div class="modal-body">
-      <div class="form-group"><label>平台</label><select id="llm-provider" onchange="onProviderChange()"><option value="openai">OpenAI (GPT-4o)</option><option value="gemini">Google Gemini</option><option value="deepseek">DeepSeek</option><option value="dashscope">阿里百炼 / Coding Plan</option><option value="custom">自定义</option></select></div>
-      <div class="form-group"><label>API 地址</label><input type="text" id="llm-base-url" placeholder="https://..."><datalist id="model-suggestions"></datalist></div>
-      <div class="form-group"><label>模型</label><input type="text" id="llm-model" placeholder="模型名称"></div>
-      <div class="form-group"><label>API Key</label><input type="password" id="llm-api-key" placeholder="sk-..."></div>
-      <button onclick="saveLLMConfig()" class="btn btn-primary" style="width:100%">保存</button>
-      <div id="settings-status" class="status"></div>
-    </div>
-  </div>
-</div>
-<script>
-async function loadDehydrated() {
-  const bookId = getBookId();
-  if (!bookId) return alert('没有找到 book_id，请先在首页上传并脱水小说');
-  const res = await fetch(`/api/dehydrate/${bookId}/output`);
-  if (!res.ok) return alert('脱水版不存在，请先完成脱水');
-  const data = await res.json();
-  document.getElementById('text-body').textContent = data.text;
-  document.getElementById('text-body').style.display = 'block';
-}
-
-async function askQuestion() {
-  const input = document.getElementById('qa-question');
-  const question = input.value.trim();
-  if (!question) return;
-  const bookId = getBookId();
-  if (!bookId) return alert('没有找到 book_id');
-  const res = await fetch('/api/qa/ask', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({book_id: bookId, question})
-  });
-  const data = await res.json();
-  const history = document.getElementById('qa-history');
-  const item = document.createElement('div');
-  item.className = 'qa-item';
-  item.innerHTML = `
-    <div class="question">${escHtml(question)}</div>
-    <div class="answer">${escHtml(data.answer)}</div>
-    ${data.source_chapters.length ? `<div class="source">参考章节：${data.source_chapters.join(', ')}</div>` : ''}
-  `;
-  history.prepend(item);
-  input.value = '';
-}
-
-function escHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
+// Auto-load on page open
+loadContent();
 </script>
 </body>
 </html>
