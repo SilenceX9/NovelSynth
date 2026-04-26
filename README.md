@@ -1,6 +1,6 @@
 # AI 网文脱水机 / AI Novel Dehydrator
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-orange.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org)
 [![Version](https://img.shields.io/badge/Version-0.1.0-green.svg)]()
 
