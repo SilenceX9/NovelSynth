@@ -12,6 +12,8 @@ class BlockResult(BaseModel):
     text: str
     layer: Layer
     output: str
+    original: str | None = None  # 原文，用于摘要展开
+    paragraph: int = 0
 
 
 class DehydrateRequest(BaseModel):

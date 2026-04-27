@@ -11,6 +11,7 @@ storage = Storage()
 class UploadResponse(BaseModel):
     book_id: str
     new_chapters: int = 0
+    format: str = "txt"  # "txt" or "epub"
 
 
 class BookInfo(BaseModel):
@@ -18,23 +19,73 @@ class BookInfo(BaseModel):
     title: str
     indexed: bool
     dehydrated: bool
+    total_chapters: int = 0
+
+
+class ChapterPreview(BaseModel):
+    book_id: str
+    total_chapters: int
+    chapters: list[dict]  # {"number": int, "title": str, "char_count": int}
 
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_book(file: UploadFile = File(...)):
+    filename = file.filename or "unknown"
     content = await file.read()
-    text = content.decode("utf-8")
-    title = file.filename or "unknown"
-    book_id = await storage.create_book(title, text)
 
-    from app.modules.indexer.chapter_parser import parse_chapters
-    chapters = parse_chapters(text)
-    return UploadResponse(book_id=book_id, new_chapters=len(chapters))
+    # Detect format
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "txt"
+
+    if ext == "epub":
+        import tempfile
+        from app.modules.indexer.epub_parser import parse_epub
+
+        # Save EPUB to temp file for parsing
+        with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        try:
+            chapters = parse_epub(tmp_path)
+        finally:
+            import os
+            os.unlink(tmp_path)
+
+        real_chapters = [c for c in chapters if not c["is_noise"]]
+        title = filename.rsplit(".", 1)[0]
+        book_id = await storage.create_book_epub(title, chapters)
+
+        return UploadResponse(book_id=book_id, new_chapters=len(real_chapters), format="epub")
+    else:
+        # TXT upload (existing flow)
+        text = content.decode("utf-8")
+        title = filename.rsplit(".", 1)[0]
+        book_id = await storage.create_book(title, text)
+
+        from app.modules.indexer.chapter_parser import parse_chapters
+        chapters = parse_chapters(text)
+        return UploadResponse(book_id=book_id, new_chapters=len(chapters), format="txt")
 
 
-@router.get("/", response_model=list[BookInfo])
+@router.get("/")
 async def list_books():
-    return await storage.list_books()
+    books = await storage.list_books()
+    result = []
+    for b in books:
+        book_id = b["book_id"]
+        # Try to get chapter count from chapters.json first, then parse original
+        chapters = await storage.load_chapters(book_id)
+        if chapters:
+            total = sum(1 for c in chapters if not c.get("is_noise"))
+        else:
+            from app.modules.indexer.chapter_parser import parse_chapters
+            original = await storage.load_original(book_id)
+            if original:
+                total = len(parse_chapters(original))
+            else:
+                total = 0
+        result.append({**b, "total_chapters": total})
+    return result
 
 
 @router.get("/with-tasks")
@@ -94,7 +145,55 @@ async def append_to_book(book_id: str, file: UploadFile = File(...)):
 
 @router.get("/{book_id}/status")
 async def get_status(book_id: str):
-    return await storage.get_status(book_id)
+    status = await storage.get_status(book_id)
+
+    # Add chapter count
+    chapters = await storage.load_chapters(book_id)
+    if chapters:
+        total = sum(1 for c in chapters if not c.get("is_noise"))
+    else:
+        from app.modules.indexer.chapter_parser import parse_chapters
+        original = await storage.load_original(book_id)
+        if original:
+            total = len(parse_chapters(original))
+        else:
+            total = 0
+    status["total_chapters"] = total
+    return status
+
+
+@router.get("/{book_id}/chapters")
+async def get_chapter_preview(book_id: str):
+    """返回章节列表，用于预览和选择。
+
+    Query params:
+        start: 起始章节号 (1-based, default 1)
+        end: 结束章节号 (1-based, default -1 means all)
+    """
+    chapters = await storage.load_chapters(book_id)
+    if chapters is None:
+        # TXT books: parse from original
+        from app.modules.indexer.chapter_parser import parse_chapters
+        original = await storage.load_original(book_id)
+        if not original:
+            raise HTTPException(404, "Book not found")
+        chapters = parse_chapters(original)
+
+    # Filter out noise chapters for EPUB
+    clean_chapters = [c for c in chapters if not c.get("is_noise")]
+
+    return {
+        "book_id": book_id,
+        "total_chapters": len(clean_chapters),
+        "chapters": [
+            {
+                "number": c.get("number", i + 1),
+                "title": c["title"],
+                "char_count": c.get("char_count", len(c.get("text", ""))),
+            }
+            for i, c in enumerate(clean_chapters)
+        ],
+    }
 
 
 @router.delete("/{book_id}")

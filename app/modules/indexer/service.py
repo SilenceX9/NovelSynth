@@ -18,7 +18,7 @@ from app.storage import Storage
 logger = logging.getLogger(__name__)
 
 # Max concurrent LLM calls during indexing
-MAX_INDEX_CONCURRENCY = 5
+MAX_INDEX_CONCURRENCY = 2
 
 
 def _partials_dir(book_id: str) -> Path:
@@ -92,11 +92,21 @@ async def _run_index_task(task: TaskState, original_text: str, chapters: list[di
                 "step": step, "current": batch_idx + 1,
             }))
 
-            try:
-                partial = await extract_batch(chapters, batch_start, batch_end, task.book_id)
-            except Exception as e:
-                logger.exception(f"[{task.book_id}] batch {batch_idx} failed: {e}")
-                raise
+            import asyncio
+
+            retries = 2
+            partial = None
+            for attempt in range(retries):
+                try:
+                    partial = await extract_batch(chapters, batch_start, batch_end, task.book_id)
+                    break
+                except Exception as e:
+                    if attempt == 0:
+                        logger.warning(f"[{task.book_id}] batch {batch_idx} attempt {attempt+1} failed, retrying: {e}")
+                    else:
+                        logger.exception(f"[{task.book_id}] batch {batch_idx} failed after {retries} attempts")
+                        raise
+                    await asyncio.sleep(5 * (attempt + 1))
 
             # Persist partial to disk
             await _save_partial(task.book_id, batch_idx, partial)

@@ -88,19 +88,19 @@ body {
 .chapter-item:hover { background: #f5f2eb; }
 .chapter-item.active { background: #eef0ff; color: #2563eb; font-weight: 600; }
 
-/* Floating chapter button inside reader */
+/* Floating chapter button - fixed on left side */
 .chapter-float-btn {
-  position: sticky; top: 16px; z-index: 10;
-  display: block; margin: 0 auto 24px;
-  padding: 6px 16px; border-radius: 16px;
-  background: rgba(255,255,255,0.9);
+  position: fixed; left: 16px; top: calc(var(--topbar-h) + 16px); z-index: 40;
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 8px;
+  background: rgba(255,255,255,0.95);
   border: 1px solid rgba(0,0,0,0.08);
-  font-size: 12px; color: var(--text-secondary);
+  font-size: 13px; color: var(--text);
   cursor: pointer; font-family: inherit;
   transition: all 0.15s;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
-.chapter-float-btn:hover { background: #fff; color: var(--text); }
+.chapter-float-btn:hover { background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.12); }
 
 /* Overlay when chapter sidebar is open */
 .sidebar-overlay {
@@ -126,15 +126,26 @@ body {
 .reader-inner {
   max-width: var(--reader-max);
   margin: 0 auto;
-  padding: 40px 32px 80px;
+  padding: 40px 32px 80px 80px;
 }
 
 /* Keep (original text) */
 .block-keep {
   font-family: "Source Han Serif SC", "Noto Serif SC", "STSong", "Songti SC", serif;
   font-size: 17px; line-height: 2; color: var(--text);
-  margin-bottom: 20px; white-space: pre-wrap;
+  margin-bottom: 24px; white-space: pre-wrap;
   text-align: justify;
+  padding-bottom: 8px;
+}
+
+/* Chapter title */
+.chapter-title {
+  font-family: "Source Han Serif SC", "Noto Serif SC", "STSong", "Songti SC", serif;
+  font-size: 20px; font-weight: 700; color: #1a1a1a;
+  margin: 32px 0 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid rgba(0,0,0,0.08);
+  letter-spacing: 0.5px;
 }
 
 /* Note group */
@@ -319,10 +330,11 @@ body {
 /* ===== Responsive ===== */
 @media (max-width: 900px) {
   .reader-sidebar { display: none; }
-  .reader-inner { padding: 24px 16px 60px; }
+  .reader-inner { padding: 24px 16px 60px 16px; }
   .block-keep { font-size: 16px; line-height: 1.9; }
   .chapter-sidebar { width: 85vw; max-width: 320px; }
   .reader-main.shifted { margin-left: 0; }
+  .chapter-float-btn { position: sticky; left: auto; top: 16px; margin: 0 0 16px 0; }
 }
 </style>
 </head>
@@ -351,7 +363,7 @@ body {
 <div class="reader-layout">
   <div class="reader-main" id="reader-main">
     <div class="reader-inner" id="reader-inner">
-      <button class="chapter-float-btn" id="chapter-float-btn" onclick="toggleChapterSidebar()" title="章节目录">目录</button>
+      <button class="chapter-float-btn" id="chapter-float-btn" onclick="toggleChapterSidebar()" title="章节目录">☰ 目录</button>
       <div class="placeholder-state" id="placeholder" style="text-align:center;padding:80px 20px;color:#ccc;">
         <div style="font-size:40px;margin-bottom:12px">📖</div>
         <p>加载中...</p>
@@ -525,6 +537,11 @@ function renderStructured(blocks) {
     const firstBlock = groupBuffer[0];
     if (firstBlock._isNewChapter && firstBlock._chapter !== undefined && firstBlock._chapter >= 0) {
       html += `<span id="chapter-anchor-${firstBlock._chapter}" data-chapter="${firstBlock._chapter}" style="display:block;position:relative;top:-80px"></span>`;
+      // Add chapter title if available
+      const chTitle = chapters[firstBlock._chapter]?.title;
+      if (chTitle) {
+        html += `<div class="chapter-title">${escHtml(chTitle)}</div>`;
+      }
     }
 
     if (groupBuffer.length === 1) {
@@ -558,16 +575,27 @@ function renderStructured(blocks) {
   // Track which chapter each block belongs to, so we can add markers
   let prevChapter = -1;
 
+  function flushKeepBuffer() {
+    // No longer needed - each block is already a proper paragraph
+  }
+
   blocks.forEach((b, bi) => {
     const chIdx = b.chapter;
     const isNewChapter = chIdx !== undefined && chIdx >= 0 && chIdx !== prevChapter;
 
     if (b.layer === 'keep') {
       flushGroup();
+
       // Add invisible chapter anchor before first block of each chapter
       if (isNewChapter) {
         html += `<span id="chapter-anchor-${chIdx}" data-chapter="${chIdx}" style="display:block;position:relative;top:-80px"></span>`;
+        // Add chapter title if available
+        const chTitle = chapters[chIdx]?.title;
+        if (chTitle) {
+          html += `<div class="chapter-title">${escHtml(chTitle)}</div>`;
+        }
       }
+      // Each block is already a proper-length paragraph
       html += `<div class="block-keep">${escHtml(b.text)}</div>`;
       prevChapter = chIdx !== undefined ? chIdx : prevChapter;
     } else if (b.layer === 'summarize') {

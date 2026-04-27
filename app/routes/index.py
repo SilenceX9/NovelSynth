@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.models.context import IndexResponse
 from app.modules.indexer.chapter_parser import parse_chapters
@@ -15,18 +15,47 @@ router = APIRouter(prefix="/api/index", tags=["index"])
 storage = Storage()
 
 
-@router.post("/{book_id}/start")
-async def start_index(book_id: str):
-    """启动或恢复索引任务。"""
-    original = await storage.load_original(book_id)
-    if not original:
-        raise HTTPException(404, "Book not found")
-
-    chapters = parse_chapters(original)
+async def _get_chapters(book_id: str) -> tuple[list[dict], str]:
+    """Get chapters for a book. Prefer chapters.json (EPUB) over parsing original.txt (TXT)."""
+    chapters = await storage.load_chapters(book_id)
+    if chapters is not None:
+        # EPUB book: filter noise chapters
+        clean = [c for c in chapters if not c.get("is_noise")]
+    else:
+        # TXT book: parse from original
+        original = await storage.load_original(book_id)
+        if not original:
+            raise HTTPException(404, "Book not found")
+        clean = parse_chapters(original)
     books = await storage.list_books()
     book_title = next((b["title"] for b in books if b["book_id"] == book_id), f"book_{book_id}")
+    return clean, book_title
 
-    task = await start_or_resume_index(book_id, original, chapters, book_title)
+
+@router.post("/{book_id}/start")
+async def start_index(
+    book_id: str,
+    start_chapter: int = Query(default=1, ge=1, description="Start chapter (1-based)"),
+    end_chapter: int = Query(default=-1, description="End chapter (-1 = all)"),
+):
+    """启动或恢复索引任务。支持指定章节范围。"""
+    chapters, book_title = await _get_chapters(book_id)
+
+    # Apply chapter range
+    if end_chapter == -1 or end_chapter > len(chapters):
+        end_chapter = len(chapters)
+    if start_chapter > end_chapter:
+        start_chapter = end_chapter
+    selected = chapters[start_chapter - 1 : end_chapter]
+
+    # Re-number selected chapters to 1..N
+    for i, ch in enumerate(selected):
+        ch["number"] = i + 1
+
+    # Combine chapter texts for processing
+    combined = "\n\n".join(f"{ch['title']}\n{ch['text']}" for ch in selected)
+
+    task = await start_or_resume_index(book_id, combined, selected, book_title)
     return task.to_dict()
 
 
@@ -55,15 +84,9 @@ async def pause_index_task(book_id: str):
 @router.post("/{book_id}/resume")
 async def resume_index_task(book_id: str):
     """恢复索引任务。"""
-    original = await storage.load_original(book_id)
-    if not original:
-        raise HTTPException(404, "Book not found")
-
-    chapters = parse_chapters(original)
-    books = await storage.list_books()
-    book_title = next((b["title"] for b in books if b["book_id"] == book_id), f"book_{book_id}")
-
-    task = await resume_index(book_id, original, chapters, book_title)
+    chapters, book_title = await _get_chapters(book_id)
+    combined = "\n\n".join(f"{ch['title']}\n{ch['text']}" for ch in chapters)
+    task = await resume_index(book_id, combined, chapters, book_title)
     if task is None:
         raise HTTPException(404, "No paused index task")
     return task.to_dict()
@@ -72,19 +95,14 @@ async def resume_index_task(book_id: str):
 @router.post("/{book_id}")
 async def trigger_index(book_id: str):
     """兼容旧接口：启动索引并阻塞等待完成（不推荐）"""
-    original = await storage.load_original(book_id)
-    if not original:
-        raise HTTPException(404, "Book not found")
-
-    chapters = parse_chapters(original)
-    books = await storage.list_books()
-    book_title = next((b["title"] for b in books if b["book_id"] == book_id), f"book_{book_id}")
+    chapters, book_title = await _get_chapters(book_id)
+    combined = "\n\n".join(f"{ch['title']}\n{ch['text']}" for ch in chapters)
 
     from app.modules.indexer.service import _run_index_task, _run_index_task_wrapper
     from app.task_manager import TaskState, STATUS_RUNNING
 
     task = TaskState(book_id=book_id, task_type=TASK_INDEX, total=len(chapters))
-    ctx = await _run_index_task(task, original, chapters, book_title)
+    ctx = await _run_index_task(task, combined, chapters, book_title)
 
     if ctx is not None:
         await storage.save_context(book_id, ctx)

@@ -38,9 +38,54 @@ class Storage:
             await db.commit()
         return book_id
 
+    async def create_book_epub(self, title: str, chapters: list[dict]) -> str:
+        """Create a book entry for EPUB upload. Saves chapters.json and a minimal original.txt."""
+        book_id = uuid.uuid4().hex[:12]
+        book_dir = self._book_dir(book_id)
+
+        # Save chapters as the primary data source
+        import json
+        (book_dir / "chapters.json").write_text(
+            json.dumps(chapters, ensure_ascii=False), encoding="utf-8"
+        )
+
+        # Also save original.txt with combined chapter texts for compatibility
+        combined = "\n\n".join(f"{ch['title']}\n{ch['text']}" for ch in chapters if not ch.get("is_noise"))
+        (book_dir / "original.txt").write_text(combined, encoding="utf-8")
+
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute(
+                "CREATE TABLE IF NOT EXISTS books "
+                "(book_id TEXT PRIMARY KEY, title TEXT, "
+                "indexed INTEGER DEFAULT 0, dehydrated INTEGER DEFAULT 0)"
+            )
+            await db.execute(
+                "INSERT INTO books (book_id, title) VALUES (?, ?)",
+                (book_id, title),
+            )
+            await db.commit()
+        return book_id
+
     async def save_original(self, book_id: str, text: str):
         self._book_dir(book_id)
         (self.data_dir / book_id / "original.txt").write_text(text, encoding="utf-8")
+
+    async def load_original(self, book_id: str) -> str:
+        return (self.data_dir / book_id / "original.txt").read_text(encoding="utf-8")
+
+    async def save_chapters(self, book_id: str, chapters: list[dict]):
+        """Save parsed chapters as JSON for efficient access and chapter selection."""
+        import json
+        path = self.data_dir / book_id / "chapters.json"
+        path.write_text(json.dumps(chapters, ensure_ascii=False), encoding="utf-8")
+
+    async def load_chapters(self, book_id: str) -> list[dict] | None:
+        """Load parsed chapters. Returns None if not yet parsed."""
+        import json
+        path = self.data_dir / book_id / "chapters.json"
+        if not path.exists():
+            return None
+        return json.loads(path.read_text(encoding="utf-8"))
 
     async def load_original(self, book_id: str) -> str:
         return (self.data_dir / book_id / "original.txt").read_text(encoding="utf-8")
@@ -83,6 +128,19 @@ class Storage:
         """
         import json
         path = self.data_dir / book_id / "dehydrated_chapters.json"
+        path.write_text(json.dumps(chapters, ensure_ascii=False), encoding="utf-8")
+
+    async def save_single_chapter_dehydrated(self, book_id: str, chapter_idx: int, title: str, text: str):
+        """Save a single dehydrated chapter immediately as it completes, enabling progressive reading."""
+        import json
+        path = self.data_dir / book_id / "dehydrated_chapters.json"
+        chapters: list[dict] = []
+        if path.exists():
+            chapters = json.loads(path.read_text(encoding="utf-8"))
+        # Ensure list is long enough
+        while len(chapters) <= chapter_idx:
+            chapters.append({"title": "", "text": ""})
+        chapters[chapter_idx] = {"title": title, "text": text}
         path.write_text(json.dumps(chapters, ensure_ascii=False), encoding="utf-8")
 
     async def load_chapter_dehydrated(self, book_id: str) -> list[dict]:

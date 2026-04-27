@@ -85,36 +85,43 @@ class LLMClient:
         self.api_key = api_key or settings.llm_api_key
         self.model = model or settings.llm_model
 
-    async def chat(self, messages: list[dict], temperature: float = 0.3) -> str:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": temperature,
-                },
-                timeout=120,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            # Track usage
-            usage = data.get("usage", {})
-            in_tokens = usage.get("prompt_tokens", 0)
-            out_tokens = usage.get("completion_tokens", 0)
-            LLMClient._metrics["total_tokens"] += in_tokens + out_tokens
-            LLMClient._metrics["call_count"] += 1
-            choices = data.get("choices", [])
-            if not choices:
-                raise ValueError(f"LLM 返回空响应: {json.dumps(data, ensure_ascii=False)[:300]}")
-            content = choices[0].get("message", {}).get("content", "")
-            if not content:
-                raise ValueError(f"LLM 返回无内容: {json.dumps(data, ensure_ascii=False)[:300]}")
-            return content
+    async def chat(self, messages: list[dict], temperature: float = 0.3, max_retries: int = 3) -> str:
+        last_exc = None
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self.model,
+                            "messages": messages,
+                            "temperature": temperature,
+                        },
+                        timeout=300,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    usage = data.get("usage", {})
+                    in_tokens = usage.get("prompt_tokens", 0)
+                    out_tokens = usage.get("completion_tokens", 0)
+                    LLMClient._metrics["total_tokens"] += in_tokens + out_tokens
+                    LLMClient._metrics["call_count"] += 1
+                    choices = data.get("choices", [])
+                    if not choices:
+                        raise ValueError(f"LLM 返回空响应: {json.dumps(data, ensure_ascii=False)[:300]}")
+                    content = choices[0].get("message", {}).get("content", "")
+                    if not content:
+                        raise ValueError(f"LLM 返回无内容: {json.dumps(data, ensure_ascii=False)[:300]}")
+                    return content
+            except Exception as e:
+                last_exc = e
+                import asyncio
+                await asyncio.sleep(2 ** attempt)
+        raise last_exc
 
     @classmethod
     def reset_metrics(cls):

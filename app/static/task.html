@@ -109,12 +109,14 @@ body {
 }
 .chapter-item.done { color: #15803d; background: #f0fdf4; border-color: #bbf7d0; }
 .chapter-item.current { background: #eff6ff; color: #2563eb; font-weight: 500; border-color: #bfdbfe; }
+.chapter-item.failed { color: #dc2626; background: #fef2f2; border-color: #fecaca; }
 .chapter-item .dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
 }
 .dot-done { background: #15803d; }
 .dot-pending { background: #ddd; }
 .dot-current { background: #2563eb; animation: pulse 1.5s ease infinite; }
+.dot-failed { background: #dc2626; animation: pulse 1.5s ease infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 .status-msg { font-size: 13px; margin-top: 8px; }
@@ -200,6 +202,7 @@ body {
 <script>
 let bookId = null;
 let pollTimer = null;
+let chapterRange = null;  // {start, end} from URL params
 
 async function loadBookInfo() {
   const res = await fetch(`/api/tasks/book/${bookId}`);
@@ -216,7 +219,7 @@ async function loadBookInfo() {
   document.getElementById('dehydrate-task-card').style.display = hasDehydrateTask ? 'block' : 'none';
 
   if (hasIndexTask) renderIndexTask(data.index, data.total_chapters, data.index_history || [], data.indexed);
-  if (hasDehydrateTask) renderDehydrateTask(data.dehydrate, data.total_chapters, data.dehydrate_history || [], data.dehydrated, data.indexed);
+  if (hasDehydrateTask) renderDehydrateTask(data.dehydrate, data.total_chapters, data.dehydrated_count || 0, data.dehydrate_history || [], data.dehydrated, data.indexed, data.failed_chapters || []);
 
   const empty = document.getElementById('empty-state');
   empty.style.display = (!hasIndexTask && !hasDehydrateTask) ? 'block' : 'none';
@@ -243,8 +246,8 @@ function renderIndexTask(task, totalChapters, history, isDone) {
   if (!task && !isDone && history.length === 0) {
     badge.textContent = '未开始';
     badge.className = 'status-badge status-not_started';
-    area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#888">共 ${totalChapters} 章，开始索引以构建全局上下文</div>`;
-    controls.innerHTML = `<button onclick="startTask('index')" class="btn btn-sm btn-primary">开始索引</button>`;
+    area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#888">共 ${totalChapters} 章，一键完成索引+脱水</div>`;
+    controls.innerHTML = `<button onclick="startCombined()" class="btn btn-sm btn-primary">一键处理</button>`;
     chList.innerHTML = '';
   } else if (!task && isDone) {
     badge.textContent = '已完成';
@@ -265,12 +268,13 @@ function renderIndexTask(task, totalChapters, history, isDone) {
     badge.textContent = statusLabel(task.status);
     badge.className = `status-badge status-${task.status}`;
 
-    const pct = totalChapters > 0 ? Math.round(task.current / totalChapters * 100) : 0;
+    const taskTotal = task.total || totalChapters;
+    const pct = taskTotal > 0 ? Math.round(task.current / taskTotal * 100) : 0;
     area.innerHTML = `
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
       <div class="progress-info">
         <span class="progress-step">${escHtml(task.step || '准备中')}</span>
-        <span class="progress-metrics">${task.current}/${totalChapters} 章</span>
+        <span class="progress-metrics">${task.current}/${taskTotal} 章</span>
       </div>
       ${task.tokens > 0 ? `<div style="margin-top:6px;font-size:12px;color:#999">已消耗 ${formatTokens(task.tokens)} tokens · ${formatElapsed(task.elapsed)}</div>` : ''}
     `;
@@ -280,20 +284,24 @@ function renderIndexTask(task, totalChapters, history, isDone) {
     } else if (task.status === 'paused') {
       controls.innerHTML = `<button onclick="resumeTask('index')" class="btn btn-sm btn-primary">▶ 继续</button>`;
     } else if (task.status === 'failed') {
-      controls.innerHTML = `<button onclick="startTask('index')" class="btn btn-sm btn-primary">重试</button>`;
+      controls.innerHTML = `<button onclick="restartTask('index')" class="btn btn-sm btn-primary">重新开始</button>`;
     } else if (task.status === 'done') {
       controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('index')" class="btn btn-sm btn-secondary">重新索引</button>`;
+      // Show all chapters in this task run as completed
+      const allDone = Array.from({ length: taskTotal }, (_, i) => i);
+      chList.innerHTML = buildChapterList(allDone, taskTotal, 0);
+      return;
     } else {
       controls.innerHTML = '';
     }
 
-    chList.innerHTML = buildChapterList(task.completed || [], totalChapters, task.current);
+    chList.innerHTML = buildChapterList(task.completed || [], taskTotal, task.current);
   }
 
   renderHistory(histArea, history);
 }
 
-function renderDehydrateTask(task, totalChapters, history, isDone, isIndexed) {
+function renderDehydrateTask(task, totalChapters, dehydratedCount, history, isDone, isIndexed, failedChapters) {
   const badge = document.getElementById('dehydrate-status-badge');
   const area = document.getElementById('dehydrate-progress-area');
   const controls = document.getElementById('dehydrate-controls');
@@ -307,31 +315,86 @@ function renderDehydrateTask(task, totalChapters, history, isDone, isIndexed) {
     area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#888">请先完成全局索引后再开始脱水</div>`;
     controls.innerHTML = '';
     chList.innerHTML = '';
+  } else if (!task && isIndexed && history.length === 0) {
+    // Index done, dehydrate not started
+    badge.textContent = '未开始';
+    badge.className = 'status-badge status-not_started';
+    area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#888">索引已完成，开始智能脱水</div>`;
+    controls.innerHTML = `<button onclick="startTask('dehydrate')" class="btn btn-sm btn-primary">开始脱水</button>`;
+    chList.innerHTML = '';
   } else if (!task && isDone) {
     badge.textContent = '已完成';
     badge.className = 'status-badge status-done';
-    area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#555">脱水完成 · ${totalChapters} 章</div>`;
-    controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
+    const displayCount = dehydratedCount || totalChapters;
+    area.innerHTML = `<div style="padding:8px 0;font-size:14px;color:#555">脱水完成 · ${displayCount} 章${displayCount < totalChapters ? `（共 ${totalChapters} 章）` : ''}</div>`;
+    let btns = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a>`;
+    if (failedChapters && failedChapters.length > 0) {
+      btns += `<button onclick="retryFailed()" class="btn btn-sm btn-warning">重试 ${failedChapters.length} 章</button>`;
+    }
+    // Check if there are remaining chapters to dehydrate
+    if (displayCount < totalChapters) {
+      const remaining = totalChapters - displayCount;
+      btns += `<button onclick="continueDehydrate(${displayCount + 1}, ${totalChapters})" class="btn btn-sm btn-secondary">继续脱水剩余 ${remaining} 章</button>`;
+    }
+    btns += `<button onclick="restartTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
+    controls.innerHTML = btns;
     chList.innerHTML = '';
+    // Still show failed chapters even when task is done
+    if (failedChapters && failedChapters.length > 0) {
+      let failedHtml = '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0">';
+      failedHtml += '<div style="font-size:13px;font-weight:600;color:#dc2626;margin-bottom:8px">失败章节</div>';
+      for (const f of failedChapters) {
+        failedHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;color:#666">
+          <span>第 ${f.index + 1} 章 · ${escHtml(f.title || '')}</span>
+          <span style="color:#dc2626;font-size:12px">${escHtml(cleanError(f.error))}</span>
+        </div>`;
+      }
+      failedHtml += '</div>';
+      chList.innerHTML = failedHtml;
+    }
   } else if (!task) {
     const lastHist = history[0] || {};
     badge.textContent = '已完成';
     badge.className = 'status-badge status-done';
+    const displayCount = dehydratedCount || lastHist.total || totalChapters;
     area.innerHTML = lastHist.tokens > 0
-      ? `<div style="padding:8px 0;font-size:14px;color:#555">已处理 ${lastHist.total || totalChapters} 章 · 消耗 ${formatTokens(lastHist.tokens)} tokens · 耗时 ${formatElapsed(lastHist.elapsed)}</div>`
+      ? `<div style="padding:8px 0;font-size:14px;color:#555">已处理 ${displayCount} 章${displayCount < totalChapters ? `（共 ${totalChapters} 章）` : ''} · 消耗 ${formatTokens(lastHist.tokens)} tokens · 耗时 ${formatElapsed(lastHist.elapsed)}</div>`
       : '';
-    controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
+    let btns = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a>`;
+    if (failedChapters && failedChapters.length > 0) {
+      btns += `<button onclick="retryFailed()" class="btn btn-sm btn-warning">重试 ${failedChapters.length} 章</button>`;
+    }
+    // Check if there are remaining chapters to dehydrate
+    if (displayCount < totalChapters) {
+      const remaining = totalChapters - displayCount;
+      btns += `<button onclick="continueDehydrate(${displayCount + 1}, ${totalChapters})" class="btn btn-sm btn-secondary">继续脱水剩余 ${remaining} 章</button>`;
+    }
+    btns += `<button onclick="restartTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
+    controls.innerHTML = btns;
     chList.innerHTML = '';
+    if (failedChapters && failedChapters.length > 0) {
+      let failedHtml = '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0">';
+      failedHtml += '<div style="font-size:13px;font-weight:600;color:#dc2626;margin-bottom:8px">失败章节</div>';
+      for (const f of failedChapters) {
+        failedHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;color:#666">
+          <span>第 ${f.index + 1} 章 · ${escHtml(f.title || '')}</span>
+          <span style="color:#dc2626;font-size:12px">${escHtml(cleanError(f.error))}</span>
+        </div>`;
+      }
+      failedHtml += '</div>';
+      chList.innerHTML = failedHtml;
+    }
   } else {
     badge.textContent = statusLabel(task.status);
     badge.className = `status-badge status-${task.status}`;
 
-    const pct = totalChapters > 0 ? Math.round(task.current / totalChapters * 100) : 0;
+    const taskTotal = task ? task.total || totalChapters : totalChapters;
+    const pct = taskTotal > 0 ? Math.round(task.current / taskTotal * 100) : 0;
     area.innerHTML = `
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
       <div class="progress-info">
         <span class="progress-step">${escHtml(task.step || '准备中')}</span>
-        <span class="progress-metrics">${task.current}/${totalChapters} 章</span>
+        <span class="progress-metrics">${task.current}/${taskTotal} 章</span>
       </div>
       ${task.tokens > 0 ? `<div style="margin-top:6px;font-size:12px;color:#999">已消耗 ${formatTokens(task.tokens)} tokens · ${formatElapsed(task.elapsed)}</div>` : ''}
     `;
@@ -341,14 +404,45 @@ function renderDehydrateTask(task, totalChapters, history, isDone, isIndexed) {
     } else if (task.status === 'paused') {
       controls.innerHTML = `<button onclick="resumeTask('dehydrate')" class="btn btn-sm btn-primary">▶ 继续</button>`;
     } else if (task.status === 'failed') {
-      controls.innerHTML = `<button onclick="startTask('dehydrate')" class="btn btn-sm btn-primary">重试</button>`;
+      controls.innerHTML = `<button onclick="restartTask('dehydrate')" class="btn btn-sm btn-primary">重新开始</button>`;
     } else if (task.status === 'done') {
-      controls.innerHTML = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a><button onclick="startTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
+      // Show retry failed button if there are failed chapters
+      let btns = `<a href="/read.html?book_id=${bookId}" class="btn btn-sm btn-primary" style="text-decoration:none">查看详情</a>`;
+      if (failedChapters && failedChapters.length > 0) {
+        btns += `<button onclick="retryFailed()" class="btn btn-sm btn-warning">重试 ${failedChapters.length} 章</button>`;
+      }
+      // Check if there are remaining chapters to dehydrate
+      const doneCount = task.completed ? task.completed.length : taskTotal;
+      if (doneCount < totalChapters) {
+        const remaining = totalChapters - doneCount;
+        btns += `<button onclick="continueDehydrate(${doneCount + 1}, ${totalChapters})" class="btn btn-sm btn-secondary">继续脱水剩余 ${remaining} 章</button>`;
+      }
+      btns += `<button onclick="restartTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
+      controls.innerHTML = btns;
+      // Show completed chapter list using task total (not book total)
+      const completedChapters = task.completed || [];
+      chList.innerHTML = buildChapterList(completedChapters, taskTotal, task.current, failedChapters || []);
+      return;
     } else {
       controls.innerHTML = '';
     }
 
-    chList.innerHTML = buildChapterList(task.completed || [], totalChapters, task.current);
+    chList.innerHTML = buildChapterList(task.completed || [], taskTotal, task.current, failedChapters || []);
+  }
+
+  // Show failed chapters detail
+  if (failedChapters && failedChapters.length > 0) {
+    let failedHtml = '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0">';
+    failedHtml += '<div style="font-size:13px;font-weight:600;color:#dc2626;margin-bottom:8px">失败章节</div>';
+    for (const f of failedChapters) {
+      const reason = cleanError(f.error);
+      failedHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;color:#666">
+        <span>第 ${f.index + 1} 章 · ${escHtml(f.title || '')}</span>
+        <span style="color:#dc2626;font-size:12px">${escHtml(reason)}</span>
+      </div>`;
+    }
+    failedHtml += '</div>';
+    chList.innerHTML += failedHtml;
   }
 
   renderHistory(histArea, history);
@@ -388,19 +482,33 @@ function formatElapsed(seconds) {
   return `${m}m${s}s`;
 }
 
-function buildChapterList(completed, total, current) {
+function buildChapterList(completed, total, current, failedChapters) {
   const completedSet = new Set(completed);
+  const failedSet = new Set((failedChapters || []).map(f => f.index));
   let html = '';
 
   for (let i = 0; i < total; i++) {
     const isDone = completedSet.has(i);
+    const isFailed = failedSet.has(i);
     const isCurrent = i + 1 === current;
-    const cls = isDone ? 'done' : isCurrent ? 'current' : '';
-    const dotCls = isDone ? 'dot-done' : isCurrent ? 'dot-current' : 'dot-pending';
+    let cls = '';
+    let dotCls = 'dot-pending';
+    if (isFailed) {
+      cls = 'failed';
+      dotCls = 'dot-failed';
+    } else if (isDone) {
+      cls = 'done';
+      dotCls = 'dot-done';
+    } else if (isCurrent) {
+      cls = 'current';
+      dotCls = 'dot-current';
+    }
+    const icon = isDone ? '<span style="margin-left:auto;font-size:10px">✓</span>' :
+                 isFailed ? '<span style="margin-left:auto;font-size:10px">✗</span>' : '';
     html += `<div class="chapter-item ${cls}">
       <span class="dot ${dotCls}"></span>
       <span>${i+1}</span>
-      ${isDone ? '<span style="margin-left:auto;font-size:10px">✓</span>' : ''}
+      ${icon}
     </div>`;
   }
   return html;
@@ -420,7 +528,39 @@ function statusLabel(status) {
 
 async function startTask(type) {
   const endpoint = type === 'index' ? `/api/index/${bookId}/start` : `/api/dehydrate/${bookId}/start`;
-  await fetch(endpoint, { method: 'POST' });
+  const params = new URLSearchParams();
+  if (chapterRange) {
+    params.set('start_chapter', chapterRange.start);
+    params.set('end_chapter', chapterRange.end);
+  }
+  const qs = params.toString();
+  await fetch(qs ? `${endpoint}?${qs}` : endpoint, { method: 'POST' });
+  startPolling();
+  loadBookInfo();
+}
+
+async function startCombined() {
+  // Start combined index+dehydrate (all chapters)
+  const res = await fetch(`/api/dehydrate/${bookId}/index-and-dehydrate`, { method: 'POST' });
+  const data = await res.json();
+  startPolling();
+  loadBookInfo();
+}
+
+async function restartTask(type) {
+  if (type === 'dehydrate') {
+    const params = new URLSearchParams();
+    if (chapterRange) {
+      params.set('start_chapter', chapterRange.start);
+      params.set('end_chapter', chapterRange.end);
+    }
+    const qs = params.toString();
+    const endpoint = `/api/dehydrate/${bookId}/restart${qs ? '?' + qs : ''}`;
+    await fetch(endpoint, { method: 'POST' });
+  } else {
+    // For index, just call start (it resets anyway)
+    await startTask('index');
+  }
   startPolling();
   loadBookInfo();
 }
@@ -451,14 +591,63 @@ function escHtml(s) {
   return d.innerHTML;
 }
 
+function cleanError(msg) {
+  // Extract meaningful error from verbose API responses
+  if (!msg) return '未知错误';
+  if (msg.includes('PROHIBITED_CONTENT')) return '内容过滤拦截';
+  if (msg.includes('rate limit') || msg.includes('RateLimit')) return '请求频率限制';
+  if (msg.includes('timeout') || msg.includes('Timeout')) return '请求超时';
+  if (msg.length > 60) return msg.slice(0, 60) + '…';
+  return msg;
+}
+
+async function retryFailed() {
+  const res = await fetch(`/api/dehydrate/${bookId}/retry-failed`, { method: 'POST' });
+  if (!res.ok) {
+    alert('重试失败：' + (await res.json()).detail || '未知错误');
+    return;
+  }
+  startPolling();
+  loadBookInfo();
+}
+
+async function continueDehydrate(startChapter, endChapter) {
+  // Start dehydrate for remaining chapters
+  const endpoint = `/api/dehydrate/${bookId}/start?start_chapter=${startChapter}&end_chapter=${endChapter}`;
+  await fetch(endpoint, { method: 'POST' });
+  startPolling();
+  loadBookInfo();
+}
+
 // Init
 const params = new URLSearchParams(window.location.search);
 bookId = params.get('book_id') || getBookId();
+const startCh = params.get('start');
+const endCh = params.get('end');
+if (startCh && endCh) {
+  chapterRange = { start: parseInt(startCh), end: parseInt(endCh) };
+}
+
 if (!bookId) {
   document.getElementById('page-title').textContent = '未找到任务';
 } else {
   setBookId(bookId);
   loadBookInfo();
+
+  // If chapter range was passed, auto-start index+dehydrate after a short delay
+  if (chapterRange) {
+    setTimeout(async () => {
+      const res = await fetch(`/api/tasks/book/${bookId}`);
+      const data = await res.json();
+      // Only auto-start if no index is already running/done
+      if (!data.indexed && !data.index) {
+        // Use combined endpoint: starts index, then auto-starts dehydrate
+        await fetch(`/api/dehydrate/${bookId}/index-and-dehydrate?start_chapter=${chapterRange.start}&end_chapter=${chapterRange.end}`, { method: 'POST' });
+        loadBookInfo();
+        startPolling();
+      }
+    }, 800);
+  }
 }
 
 // Append upload

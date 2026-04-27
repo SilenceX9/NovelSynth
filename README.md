@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-orange.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org)
-[![Version](https://img.shields.io/badge/Version-0.1.0-green.svg)]()
+[![Version](https://img.shields.io/badge/Version-0.2.0-green.svg)]()
 
 > 将百万字长篇网文精简为"主线保留 + 支线摘要"的纯净版，去除注水废话，同时提供伴随式智能问答助手。
 >
@@ -94,7 +94,7 @@ Upload a `.txt` novel file on the home page, complete indexing and dehydration, 
 
 ## 许可证 / License
 
-本项目采用 MIT License。详见 [LICENSE](LICENSE) 文件。
+本项目采用 CC BY-NC 4.0 协议（署名-非商业性使用 4.0 国际）。非商业用途可自由使用，商用需书面授权。详见 [LICENSE](LICENSE) 文件。
 
 ---
 

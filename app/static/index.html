@@ -176,10 +176,42 @@ body {
     <div class="upload-area" id="upload-area">
       <div class="icon">📄</div>
       <p>拖拽文件到此处，或点击选择</p>
-      <p style="font-size:12px;color:#bbb;margin-top:4px">支持 .txt 文件</p>
-      <input type="file" id="file-input" accept=".txt" style="position:absolute;inset:0;opacity:0;cursor:pointer">
+      <p style="font-size:12px;color:#bbb;margin-top:4px">支持 .txt 和 .epub 文件</p>
+      <input type="file" id="file-input" accept=".txt,.epub" style="display:none">
     </div>
     <div id="upload-status" class="status"></div>
+  </div>
+</div>
+
+<!-- Chapter Preview Modal (EPUB) -->
+<div id="chapter-preview-modal" class="modal" style="display:none">
+  <div class="modal-content" style="width:560px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <h3>📖 章节预览与选择</h3>
+      <button onclick="closeChapterPreview()" class="close-btn">&times;</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;flex:1">
+      <div id="chapter-preview-info" style="margin-bottom:16px"></div>
+      <div id="chapter-preview-range" style="margin-bottom:16px;padding:16px;background:#f8f7ff;border-radius:10px">
+        <p style="font-size:14px;font-weight:600;margin-bottom:10px">选择处理范围</p>
+        <div style="display:flex;gap:12px;align-items:end">
+          <div style="flex:1">
+            <label style="font-size:12px;color:#888">起始章节</label>
+            <input type="number" id="chapter-start" min="1" value="1" style="width:100%;padding:8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:12px;color:#888">结束章节</label>
+            <input type="number" id="chapter-end" min="1" value="100" style="width:100%;padding:8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px">
+          </div>
+        </div>
+        <p id="chapter-cost-estimate" style="font-size:12px;color:#888;margin-top:10px"></p>
+      </div>
+      <div id="chapter-preview-list" style="max-height:300px;overflow-y:auto;font-size:13px;color:#666;margin-bottom:16px"></div>
+      <div style="display:flex;gap:10px">
+        <button onclick="startProcessing()" class="btn btn-primary" style="flex:1;justify-content:center;padding:12px">开始处理</button>
+        <button onclick="closeChapterPreview()" class="btn btn-secondary" style="flex:1;justify-content:center;padding:12px">取消</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -293,12 +325,15 @@ async function loadHistory() {
 
     // Actions
     const actions = [];
-    // Always show "查看" to see task state + history
-    actions.push(`<a href="/task.html?book_id=${b.book_id}" class="btn btn-sm btn-secondary">查看</a>`);
     if (b.dehydrated || b.dehydrate_status === 'done') {
       actions.push(`<a href="/read.html?book_id=${b.book_id}" target="_blank" class="btn btn-sm btn-primary">阅读</a>`);
       actions.push(`<button onclick="openExportModal('${b.book_id}', '${escHtml(b.title)}')" class="btn btn-sm btn-secondary">导出</button>`);
     }
+    if (!b.indexed && !b.index_status && !(b.dehydrated || b.dehydrate_status === 'done')) {
+      // Not processed yet — show combined action
+      actions.push(`<a href="/task.html?book_id=${b.book_id}" class="btn btn-sm btn-primary">一键处理</a>`);
+    }
+    actions.push(`<a href="/task.html?book_id=${b.book_id}" class="btn btn-sm btn-secondary">查看</a>`);
     actions.push(`<button onclick="deleteBook('${b.book_id}', '${escHtml(b.title)}')" class="btn btn-sm btn-danger">删除</button>`);
 
     return `<div class="history-item">
@@ -320,23 +355,38 @@ async function deleteBook(id, title) {
   }
 }
 
-// Upload - redirect to task page
+// Upload - handle TXT and EPUB
 async function uploadFile() {
   const file = document.getElementById('file-input').files[0];
   if (!file) return alert('请先选择文件');
+
+  // Reset file input so same file can be selected again
+  const fileInput = document.getElementById('file-input');
+
+  const ext = file.name.split('.').pop().toLowerCase();
   const fd = new FormData();
   fd.append('file', file);
   setStatus('upload-status', '上传中...');
-  const res = await fetch('/api/books/upload', { method: 'POST', body: fd });
-  const data = await res.json();
-  bookId = data.book_id;
-  setBookId(bookId);
-  setStatus('upload-status', `上传成功！正在跳转任务页...`, 'success');
 
-  // Redirect to task page
-  setTimeout(() => {
-    window.location.href = `/task.html?book_id=${bookId}`;
-  }, 500);
+  try {
+    const res = await fetch('/api/books/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || '上传失败');
+    bookId = data.book_id;
+    setBookId(bookId);
+
+    // Reset file input after successful upload
+    fileInput.value = '';
+
+    if (data.format === 'epub' || data.format === 'txt') {
+      // Both: show chapter preview before processing
+      setStatus('upload-status', `上传成功！共 ${data.new_chapters} 章，正在加载章节列表...`, 'success');
+      await openChapterPreview(bookId, data.new_chapters, file.name);
+    }
+  } catch (e) {
+    setStatus('upload-status', `上传失败: ${e.message}`, 'error');
+    fileInput.value = '';
+  }
 }
 
 // Settings
@@ -431,6 +481,9 @@ document.getElementById('export-modal').onclick = function(e) {
 // Upload area drag effects
 const uploadArea = document.getElementById('upload-area');
 if (uploadArea) {
+  uploadArea.addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
   uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
   uploadArea.addEventListener('dragleave', () => { uploadArea.classList.remove('dragover'); });
   uploadArea.addEventListener('drop', (e) => {
@@ -440,9 +493,145 @@ if (uploadArea) {
   });
 }
 
+// Also trigger upload when file is selected via click
+document.getElementById('file-input').addEventListener('change', () => {
+  if (document.getElementById('file-input').files.length > 0) {
+    uploadFile();
+  }
+});
+
 bookId = getBookId();
 
-document.getElementById('file-input').addEventListener('change', uploadFile);
+// Chapter Preview (EPUB)
+let pendingBookId = null;
+let previewChapters = [];
+
+async function openChapterPreview(bookId, totalChapters, filename) {
+  pendingBookId = bookId;
+  document.getElementById('chapter-preview-modal').style.display = 'flex';
+
+  try {
+    // Fetch chapter list
+    const res = await fetch(`/api/books/${bookId}/chapters`);
+    if (!res.ok) throw new Error('加载章节失败');
+    const data = await res.json();
+    previewChapters = data.chapters;
+
+    if (!previewChapters || previewChapters.length === 0) {
+      // No chapters found — proceed directly with raw file
+      document.getElementById('chapter-preview-info').innerHTML =
+        `<p style="font-size:14px"><strong>${escHtml(filename.replace(/\.\w+$/, ''))}</strong></p>
+         <p style="font-size:13px;color:#888;margin-top:4px">未能识别章节，将全文作为单章处理</p>`;
+      document.getElementById('chapter-preview-range').style.display = 'none';
+      document.getElementById('chapter-preview-list').style.display = 'none';
+      return;
+    }
+
+    // Set range
+    document.getElementById('chapter-start').value = 1;
+    document.getElementById('chapter-start').max = data.total_chapters;
+    document.getElementById('chapter-end').value = Math.min(100, data.total_chapters);
+    document.getElementById('chapter-end').max = data.total_chapters;
+
+    // Info
+    document.getElementById('chapter-preview-info').innerHTML =
+      `<p style="font-size:14px"><strong>${escHtml(filename.replace(/\.\w+$/, ''))}</strong></p>
+       <p style="font-size:13px;color:#888;margin-top:4px">共 ${data.total_chapters} 章正文</p>`;
+
+    // Show first few chapters
+    renderChapterPreviewList(data.total_chapters, 1, Math.min(100, data.total_chapters));
+    updateCostEstimate(data.total_chapters, 1, Math.min(100, data.total_chapters));
+
+    // Wire up range change
+    document.getElementById('chapter-start').onchange = onChapterRangeChange;
+    document.getElementById('chapter-end').onchange = onChapterRangeChange;
+  } catch (e) {
+    // If chapter fetch fails, just proceed with all content
+    document.getElementById('chapter-preview-info').innerHTML =
+      `<p style="font-size:14px"><strong>${escHtml(filename.replace(/\.\w+$/, ''))}</strong></p>
+       <p style="font-size:13px;color:#888;margin-top:4px">章节列表加载失败，将全文处理</p>`;
+    document.getElementById('chapter-preview-range').style.display = 'none';
+    document.getElementById('chapter-preview-list').style.display = 'none';
+  }
+}
+
+function onChapterRangeChange() {
+  const total = previewChapters.length;
+  let start = parseInt(document.getElementById('chapter-start').value) || 1;
+  let end = parseInt(document.getElementById('chapter-end').value) || total;
+  if (start < 1) start = 1;
+  if (end > total) end = total;
+  if (start > end) end = start;
+  renderChapterPreviewList(total, start, end);
+  updateCostEstimate(total, start, end);
+}
+
+function renderChapterPreviewList(total, start, end) {
+  const el = document.getElementById('chapter-preview-list');
+  const count = end - start + 1;
+  const show = previewChapters.slice(start - 1, end);
+  let html = `<p style="margin-bottom:8px">第 ${start}-${end} 章（共 ${count} 章）：</p>`;
+  html += '<div style="max-height:200px;overflow-y:auto">';
+  for (const ch of show.slice(0, 20)) {
+    html += `<div style="padding:4px 0;border-bottom:1px solid #f0f0f0">第${ch.number}章 ${escHtml(ch.title)}</div>`;
+  }
+  if (show.length > 20) {
+    html += `<div style="padding:8px;color:#bbb">... 还有 ${show.length - 20} 章</div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function updateCostEstimate(total, start, end) {
+  const count = end - start + 1;
+  // Rough estimate: ~150 tokens/chapter for indexing, ~400 tokens/chapter for dehydration
+  const indexTokens = count * 150;
+  const dehydrateTokens = count * 400;
+  const totalTokens = indexTokens + dehydrateTokens;
+  const totalK = totalTokens / 1000;
+  // Rough cost at GPT-4o rate: ~$2.50/1M input tokens
+  const costUSD = (totalTokens / 1_000_000) * 2.5;
+  const costCNY = costUSD * 7.2;
+
+  document.getElementById('chapter-cost-estimate').innerHTML =
+    `预计消耗：<strong>${totalK.toFixed(0)}K tokens</strong>（索引 ~${(indexTokens/1000).toFixed(0)}K + 脱水 ~${(dehydrateTokens/1000).toFixed(0)}K）` +
+    (costCNY > 0 ? `，约 ¥${costCNY.toFixed(1)}` : '');
+}
+
+function closeChapterPreview() {
+  document.getElementById('chapter-preview-modal').style.display = 'none';
+  pendingBookId = null;
+}
+
+async function startProcessing() {
+  if (!pendingBookId) return;
+  const bookId = pendingBookId; // Save before closeChapterPreview sets it to null
+  const start = parseInt(document.getElementById('chapter-start').value) || 1;
+  const end = parseInt(document.getElementById('chapter-end').value) || (previewChapters.length || 100);
+
+  closeChapterPreview();
+
+  // Show immediate feedback
+  setStatus('upload-status', '正在启动处理...', 'success');
+
+  try {
+    const res = await fetch(`/api/dehydrate/${bookId}/index-and-dehydrate?start_chapter=${start}&end_chapter=${end}`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || '启动失败');
+    }
+    setStatus('upload-status', '已启动！索引完成后将自动脱水', 'success');
+    setTimeout(() => {
+      window.location.href = `/task.html?book_id=${bookId}&start=${start}&end=${end}`;
+    }, 800);
+  } catch (e) {
+    setStatus('upload-status', `启动失败: ${e.message}`, 'error');
+  }
+}
+
+document.getElementById('chapter-preview-modal').onclick = function(e) {
+  if (e.target === this) closeChapterPreview();
+};
 
 loadHistory();
 </script>

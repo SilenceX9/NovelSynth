@@ -3,15 +3,19 @@ from app.llm_config import load_llm_config
 from app.models.context import GlobalContext
 from app.models.qa import AskResponse
 
-QA_PROMPT = """你是网文阅读助手。基于以下原文片段和全局上下文，回答用户的问题。
+QA_PROMPT = """你是网文阅读助手，帮助读者理解小说内容。
 
-如果检索到的原文与问题无关，请基于全局上下文中的角色/伏笔信息尽力回答。
-回答时注明参考了哪些章节。
+回答要求：
+1. **直接回答问题**，不要开场白（"根据原文"、"我来回答"等）
+2. **分点说明**，用「•」列出关键信息
+3. **引用原文关键句**时用引号标注
+4. **不确定的内容**明确说「原文未提及」
+5. **控制在3-5句话**，简洁明了
 
-全局上下文：
-{context_summary}
+上下文：
+角色：{context_summary}
 
-检索到的原文片段：
+相关原文：
 {retrieved_text}
 """
 
@@ -54,10 +58,9 @@ async def ask_question(
         retrieved = "（未检索到相关原文）"
 
     context_summary = (
-        f"核心角色：{', '.join(c.name for c in context.characters[:10])}\n"
-        f"主线：{', '.join(context.main_plot[:10])}\n"
-        f"伏笔：{', '.join(f.description for f in context.foreshadows)}\n"
-        f"关键道具：{', '.join(context.key_items)}"
+        f"{', '.join(c.name for c in context.characters[:10])}\n"
+        f"主线：{', '.join(context.main_plot[:5])}\n"
+        f"伏笔：{', '.join(f.description for f in context.foreshadows[:5])}"
     )
 
     messages = [
@@ -69,7 +72,7 @@ async def ask_question(
     ]
 
     llm = _llm()
-    answer = await llm.chat(messages, temperature=0.5)
+    answer = await llm.chat(messages, temperature=0.3)
     source_chapters = [num for num, _ in related] if related else []
 
     return AskResponse(answer=answer, source_chapters=source_chapters)
