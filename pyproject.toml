@@ -1,7 +1,7 @@
 [project]
-name = "novel-dehydrator"
-version = "0.1.0"
-description = "AI 网文脱水机 MVP"
+name = "novelsynth"
+version = "0.3.0"
+description = "NovelSynth - AI-powered novel condensation engine"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
