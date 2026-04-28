@@ -295,7 +295,8 @@ async def get_structured(book_id: str):
     blocks = await storage.load_dehydrated_blocks(book_id)
     if not blocks:
         raise HTTPException(404, "Structured output not found")
-    return {"blocks": blocks}
+    stats = await storage.load_dehydrate_stats(book_id)
+    return {"blocks": blocks, "stats": stats}
 
 
 @router.get("/{book_id}/export/txt", response_class=PlainTextResponse)

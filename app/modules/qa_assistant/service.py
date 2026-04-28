@@ -25,23 +25,47 @@ def _llm() -> LLMClient:
     return LLMClient(base_url=cfg["base_url"], api_key=cfg["api_key"], model=cfg["model"])
 
 
+def _tokenize(text: str) -> set[str]:
+    """Simple chinese text tokenization for keyword matching."""
+    import re
+    tokens = set()
+    # Individual characters as unigrams for CJK matching
+    chinese_chars = re.findall(r'[一-鿿]', text)
+    tokens.update(chinese_chars)
+    return tokens
+
+
 def search_chapters(original_text: str, question: str, context: GlobalContext) -> list[tuple[int, str]]:
-    """简单 keyword 检索：从原版全文中找相关段落，返回 (章节号, 段落) 列表。"""
+    """Scored keyword retrieval: ranks chapters by relevance to question + context."""
     from app.modules.indexer.chapter_parser import parse_chapters
     chapters = parse_chapters(original_text)
 
-    keywords = [c.name for c in context.characters if c.name in question]
-    keywords += [item for item in context.key_items if item in question]
-    if not keywords:
-        keywords = question.split()
+    # Build keyword candidates from context
+    char_names = [c.name for c in context.characters]
+    foreshadow_terms = [f.description for f in context.foreshadows]
+    all_context_terms = char_names + context.key_items + context.main_plot + foreshadow_terms
 
-    results = []
+    # Filter to terms that overlap with the question
+    q_tokens = _tokenize(question)
+    relevant_terms = [t for t in all_context_terms if _tokenize(t) & q_tokens]
+
+    if not relevant_terms:
+        relevant_terms = [t for t in question.split() if len(t) >= 2]
+
+    if not relevant_terms:
+        return []
+
+    # Score each chapter by keyword hit count
+    scored = []
     for ch in chapters:
-        if any(kw in ch["text"] for kw in keywords if kw):
-            snippet = ch["text"][:500]
-            results.append((ch["number"], snippet))
+        ch_text = ch["text"]
+        score = sum(1 for kw in relevant_terms if kw in ch_text)
+        if score > 0:
+            snippet = ch_text[:500]
+            scored.append((score, ch["number"], snippet))
 
-    return results[:5]
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [(num, snippet) for _, num, snippet in scored[:5]]
 
 
 async def ask_question(

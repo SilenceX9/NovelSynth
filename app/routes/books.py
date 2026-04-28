@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 
 from app.storage import Storage
@@ -26,6 +26,117 @@ class ChapterPreview(BaseModel):
     book_id: str
     total_chapters: int
     chapters: list[dict]  # {"number": int, "title": str, "char_count": int}
+
+
+@router.post("/preview-epub")
+async def preview_epub(file: UploadFile = File(...)):
+    """Preview EPUB chapter stats without saving. Returns chapter count, noise list, etc."""
+    import tempfile
+    import os
+    from app.modules.indexer.epub_parser import parse_epub, count_chapters
+
+    content = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        info = count_chapters(tmp_path)
+        chapters = parse_epub(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    real = [c for c in chapters if not c["is_noise"]]
+    return {
+        "filename": file.filename,
+        "total_files": info["total"],
+        "real_chapters": info["real"],
+        "noise_count": info["noise"],
+        "noise_titles": info["noise_titles"],
+        "preview": [
+            {"number": ch["number"], "title": ch["title"], "char_count": ch["char_count"]}
+            for ch in real[:10]
+        ],
+        "total_preview_count": len(real),
+    }
+
+
+@router.post("/extract-epub")
+async def extract_epub_chapters(
+    file: UploadFile = File(...),
+    start_chapter: int = Form(1),
+    end_chapter: int = Form(-1),
+    format: str = Form("epub"),
+):
+    """Extract a chapter range from an EPUB and return as a new EPUB or TXT file."""
+    import tempfile
+    import os
+    from fastapi.responses import Response, PlainTextResponse
+    from app.modules.indexer.epub_parser import parse_epub
+    from app.utils.epub_builder import build_epub
+
+    content = await file.read()
+    with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        all_chapters = parse_epub(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    real = [c for c in all_chapters if not c["is_noise"]]
+    total = len(real)
+
+    if end_chapter == -1 or end_chapter > total:
+        end_chapter = total
+    if start_chapter < 1:
+        start_chapter = 1
+    if start_chapter > end_chapter:
+        start_chapter = end_chapter
+
+    selected = real[start_chapter - 1 : end_chapter]
+    if not selected:
+        from fastapi import HTTPException
+        raise HTTPException(400, "No chapters in selected range")
+
+    base_name = (file.filename or "unknown").rsplit(".", 1)[0]
+    range_title = f"{base_name} 第{start_chapter}-{end_chapter}章"
+
+    if format == "txt":
+        lines = []
+        for ch in selected:
+            body = ch["text"]
+            if body.startswith(ch["title"]):
+                body = body[len(ch["title"]):].strip()
+            lines.append(ch["title"])
+            lines.append("")
+            lines.append(body)
+            lines.append("")
+            lines.append("")
+        txt = "\n".join(lines).strip()
+        safe_name = base_name.encode('ascii', 'ignore').decode('ascii').replace(' ', '_') or 'extracted'
+        return PlainTextResponse(
+            content=txt,
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_name}_{start_chapter}-{end_chapter}.txt"',
+                "Content-Type": "text/plain; charset=utf-8",
+            },
+        )
+    else:
+        epub_bytes = build_epub(
+            title=range_title,
+            author="Extracted",
+            chapters=[(ch["title"], ch["text"]) for ch in selected],
+        )
+        safe_name = base_name.encode('ascii', 'ignore').decode('ascii').replace(' ', '_') or 'extracted'
+        return Response(
+            content=epub_bytes,
+            media_type="application/epub+zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_name}_{start_chapter}-{end_chapter}.epub"',
+            },
+        )
 
 
 @router.post("/upload", response_model=UploadResponse)

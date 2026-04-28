@@ -32,9 +32,9 @@ def _esc(s: str) -> str:
     )
 
 
-def _chapter_xhtml(title: str, body: str) -> str:
+def _chapter_xhtml(title: str | None, body: str) -> str:
     """Generate a single chapter XHTML5 file."""
-    escaped_title = _esc(title)
+    escaped_title = _esc(title or "")
     # Convert paragraphs: each \n\n-separated block becomes a <p>
     paragraphs = body.strip().split("\n\n")
     p_html = ""

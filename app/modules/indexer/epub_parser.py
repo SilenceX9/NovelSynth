@@ -22,14 +22,31 @@ NON_STORY_PATTERNS = [
 
 
 def _strip_html(html: str) -> str:
-    """Remove HTML tags, collapse whitespace."""
-    text = re.sub(r'<[^>]+>', ' ', html)
+    """Remove HTML tags while preserving paragraph structure."""
+    # Strip <head> section entirely to avoid <title> leak
+    text = re.sub(r'<head[^>]*>.*?</head>', '', html, flags=re.DOTALL)
+    # Replace block-level breaks with newlines before stripping tags
+    text = re.sub(r'<(?:br\s*/?|/?p|/?div|/h[1-6]|/li|/tr)[^>]*>', '\n', text)
+    # Remove remaining HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
     text = re.sub(r'&nbsp;', ' ', text)
     text = re.sub(r'&amp;', '&', text)
     text = re.sub(r'&lt;', '<', text)
     text = re.sub(r'&gt;', '>', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+    # Normalize whitespace: collapse spaces within lines, preserve paragraph breaks
+    lines = [re.sub(r'[ \t\r]+', ' ', line).strip() for line in text.split('\n')]
+    # Collapse consecutive blank lines to at most one (preserve paragraph separation)
+    out = []
+    prev_blank = False
+    for line in lines:
+        if not line:
+            if not prev_blank:
+                out.append('')
+                prev_blank = True
+        else:
+            out.append(line)
+            prev_blank = False
+    return '\n'.join(out).strip('\n')
 
 
 def _is_noise(text: str) -> bool:
@@ -49,8 +66,8 @@ def _is_noise(text: str) -> bool:
         # Check the title itself for noise keywords
         return any(k in title for k in NOISE_KEYWORDS)
 
-    # If no title extracted, check the first 40 chars (title area only)
-    head = text[:40]
+    # If no title extracted, check the first line
+    head = text.split('\n')[0].strip()[:60]
     # Strip double-title pattern: "第X章 Y 第X章 Y" -> "第X章 Y"
     m = re.match(r'^(第[零一二三四五六七八九十百千万〇0-9]+[章节回卷]\s*.+?)\s*\1', head)
     if m:
@@ -60,19 +77,25 @@ def _is_noise(text: str) -> bool:
 
 def _extract_chapter_title(text: str) -> str | None:
     """Extract a meaningful chapter title from the beginning of the text."""
-    # Pattern: 第X章/节/回 + title
-    m = re.match(r'^(第[零一二三四五六七八九十百千万〇0-9]+[章节回卷])\s*(.{1,40}?)\s*\1', text)
+    first_line = text.split('\n')[0].strip()
+
+    # Pattern 1: "第X章 Title 第X章" (double-title, chapter number repeats)
+    m = re.match(r'^(第[零一二三四五六七八九十百千万〇0-9]+[章节回卷])\s*(.+?)\s*\1', first_line)
     if m:
         prefix = m.group(1)
-        title = m.group(2).strip()
-        if title and len(title) > 1:
-            return f"{prefix} {title}"
+        title_part = m.group(2).strip()
+        if title_part and len(title_part) > 1:
+            return f"{prefix} {title_part}"
         return prefix
 
-    # Pattern: 第X卷 + title (volume header)
-    m = re.match(r'^(第[零一二三四五六七八九十百千万〇0-9]+卷)\s*(.{1,40}?)$', text[:80], re.MULTILINE)
+    # Pattern 2: "第X章/节/回/卷 Title" (simple, no repetition)
+    m = re.match(r'^(第[零一二三四五六七八九十百千万〇0-9]+[章节回卷])\s*(.+)', first_line)
     if m:
-        return m.group(0).strip()
+        prefix = m.group(1)
+        title_part = m.group(2).strip()
+        if title_part and len(title_part) > 1:
+            return f"{prefix} {title_part}"
+        return prefix
 
     return None
 
@@ -165,6 +188,10 @@ def parse_epub(epub_path: str) -> list[dict]:
             if not title:
                 # Use first 30 chars as title fallback
                 title = text[:30].strip()
+
+            # Strip the extracted title from the text body to avoid duplication
+            if title and text.startswith(title):
+                text = text[len(title):].strip()
 
             if not noise:
                 real_count += 1

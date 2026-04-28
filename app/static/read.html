@@ -6,14 +6,16 @@
 <title id="page-title">阅读器</title>
 <style>
 :root {
-  --bg: #faf7f2;
-  --text: #2c2c2c;
-  --text-secondary: #888;
+  --bg: #f9f7f3;
+  --text: #2c2416;
+  --text-secondary: #8c8478;
+  --text-muted: #b8b0a4;
   --sidebar-bg: #fff;
-  --note-bg: #f4f1ea;
-  --note-border: #d8d2c4;
-  --note-text: #6b5b3a;
-  --accent: #c4956a;
+  --note-bg: #f5f1e8;
+  --note-border: #e5ded0;
+  --note-text: #6b5d3a;
+  --accent: #8b5e3c;
+  --accent-light: #f5efe8;
   --sidebar-width: 360px;
   --reader-max: 680px;
   --topbar-h: 56px;
@@ -23,11 +25,12 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ===== Top bar ===== */
@@ -35,7 +38,7 @@ body {
   height: var(--topbar-h);
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 20px;
-  background: rgba(250,247,242,0.92);
+  background: rgba(249,247,243,0.92);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(0,0,0,0.06);
   position: relative; z-index: 50;
@@ -85,22 +88,23 @@ body {
   transition: background 0.1s; font-family: inherit;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.chapter-item:hover { background: #f5f2eb; }
-.chapter-item.active { background: #eef0ff; color: #2563eb; font-weight: 600; }
+.chapter-item:hover { background: #f0ece6; }
+.chapter-item.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
 
 /* Floating chapter button - fixed on left side */
 .chapter-float-btn {
   position: fixed; left: 16px; top: calc(var(--topbar-h) + 16px); z-index: 40;
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 16px; border-radius: 8px;
+  padding: 8px 14px; border-radius: 10px;
   background: rgba(255,255,255,0.95);
-  border: 1px solid rgba(0,0,0,0.08);
-  font-size: 13px; color: var(--text);
+  border: 1px solid rgba(0,0,0,0.06);
+  font-size: 13px; color: var(--text-secondary);
   cursor: pointer; font-family: inherit;
-  transition: all 0.15s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: all 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  backdrop-filter: blur(8px);
 }
-.chapter-float-btn:hover { background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.12); }
+.chapter-float-btn:hover { background: #fff; color: var(--text); box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
 
 /* Overlay when chapter sidebar is open */
 .sidebar-overlay {
@@ -133,9 +137,16 @@ body {
 .block-keep {
   font-family: "Source Han Serif SC", "Noto Serif SC", "STSong", "Songti SC", serif;
   font-size: 17px; line-height: 2; color: var(--text);
-  margin-bottom: 24px; white-space: pre-wrap;
   text-align: justify;
-  padding-bottom: 8px;
+  text-indent: 2em;
+  margin-bottom: 0.6em;
+}
+.block-keep + .block-keep {
+  margin-top: 0;
+}
+.block-keep + .note-group,
+.block-keep + .single-summarize {
+  margin-top: 1.2em;
 }
 
 /* Chapter title */
@@ -144,7 +155,7 @@ body {
   font-size: 20px; font-weight: 700; color: #1a1a1a;
   margin: 32px 0 20px 0;
   padding-bottom: 12px;
-  border-bottom: 2px solid rgba(0,0,0,0.08);
+  border-bottom: 2px solid rgba(0,0,0,0.06);
   letter-spacing: 0.5px;
 }
 
@@ -165,11 +176,11 @@ body {
   display: flex; align-items: center; gap: 6px;
 }
 .note-group-header .count { color: var(--accent); font-weight: 600; }
-.note-group-header .hint { font-size: 11px; color: #bbb; margin-left: auto; }
+.note-group-header .hint { font-size: 11px; color: var(--text-muted); margin-left: auto; }
 
 .note-item {
   cursor: pointer;
-  padding: 10px 0;
+  padding: 8px 0;
   border-bottom: 1px solid rgba(0,0,0,0.04);
   transition: background 0.15s;
 }
@@ -179,7 +190,8 @@ body {
 .note-label {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12px; color: var(--accent);
-  font-weight: 600; margin-bottom: 4px; user-select: none;
+  font-weight: 500; margin-bottom: 2px; user-select: none;
+  opacity: 0.85;
 }
 .note-label .arrow {
   display: inline-block; transition: transform 0.2s;
@@ -189,7 +201,7 @@ body {
 
 .note-text {
   font-size: 14px; color: var(--note-text);
-  line-height: 1.7; font-style: italic;
+  line-height: 1.7;
 }
 .note-original {
   display: none;
@@ -217,8 +229,8 @@ body {
   transition: background 0.15s;
 }
 .single-summarize:hover { background: #efe9df; }
-.single-summarize .note-label { margin-bottom: 4px; }
-.single-summarize .note-text { font-size: 14px; color: var(--note-text); line-height: 1.7; font-style: italic; }
+.single-summarize .note-label { margin-bottom: 2px; opacity: 0.85; }
+.single-summarize .note-text { font-size: 14px; color: var(--note-text); line-height: 1.7; }
 .single-summarize .note-original {
   display: none; margin-top: 12px; padding: 14px 16px;
   background: #fff; border-radius: 8px;
@@ -247,13 +259,14 @@ body {
 }
 .sidebar-toggle {
   position: fixed; right: 12px; top: calc(var(--topbar-h) + 12px);
-  width: 32px; height: 32px; border-radius: 50%;
-  background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(0,0,0,0.08);
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(255,255,255,0.95);
+  border: 1px solid rgba(0,0,0,0.06);
   cursor: pointer; font-size: 14px; color: var(--text-secondary);
   display: flex; align-items: center; justify-content: center;
   z-index: 40; transition: all 0.2s;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  backdrop-filter: blur(8px);
 }
 .sidebar-toggle:hover { background: #fff; color: var(--text); }
 
@@ -274,11 +287,11 @@ body {
 .qa-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
 
 .qa-btn {
-  padding: 6px 16px; border-radius: 6px; border: none;
-  font-size: 13px; cursor: pointer; font-weight: 500;
-  background: var(--accent); color: #fff; transition: opacity 0.15s;
+  padding: 7px 18px; border-radius: 8px; border: none;
+  font-size: 13px; cursor: pointer; font-weight: 500; font-family: inherit;
+  background: var(--accent); color: #fff; transition: all 0.18s;
 }
-.qa-btn:hover { opacity: 0.85; }
+.qa-btn:hover { background: #7a5232; }
 
 .qa-history { flex: 1; overflow-y: auto; padding: 12px 16px; }
 .qa-item {
@@ -320,8 +333,8 @@ body {
 /* ===== Scrollbar ===== */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d0cdc6; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #b5b1a8; }
+::-webkit-scrollbar-thumb { background: #d8d3c9; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #bfb8aa; }
 
 /* ===== Loading ===== */
 .loading-dots::after { content: ''; animation: dots 1.5s steps(4,end) infinite; }
@@ -529,55 +542,82 @@ function renderStructured(blocks) {
   const el = document.getElementById('text-body');
   let html = '';
   let groupBuffer = [];
+  let keepBuffer = [];
+
+  function anchorChapter(chIdx) {
+    if (chIdx === undefined || chIdx < 0) return;
+    html += `<span id="chapter-anchor-${chIdx}" data-chapter="${chIdx}" style="display:block;position:relative;top:-80px"></span>`;
+    const chTitle = chapters[chIdx]?.title;
+    if (chTitle) {
+      html += `<div class="chapter-title">${escHtml(chTitle)}</div>`;
+    }
+  }
+
+  function flushKeep() {
+    if (keepBuffer.length === 0) return;
+    const text = keepBuffer.join('');
+    html += `<div class="block-keep">${escHtml(text)}</div>`;
+    keepBuffer = [];
+  }
 
   function flushGroup() {
     if (groupBuffer.length === 0) return;
 
-    // Check if this group starts a new chapter
     const firstBlock = groupBuffer[0];
-    if (firstBlock._isNewChapter && firstBlock._chapter !== undefined && firstBlock._chapter >= 0) {
-      html += `<span id="chapter-anchor-${firstBlock._chapter}" data-chapter="${firstBlock._chapter}" style="display:block;position:relative;top:-80px"></span>`;
-      // Add chapter title if available
-      const chTitle = chapters[firstBlock._chapter]?.title;
-      if (chTitle) {
-        html += `<div class="chapter-title">${escHtml(chTitle)}</div>`;
-      }
+    if (firstBlock._isNewChapter) {
+      anchorChapter(firstBlock._chapter);
     }
 
     if (groupBuffer.length === 1) {
       const b = groupBuffer[0];
-      html += `<div class="single-summarize" onclick="event.stopPropagation();toggleNote(this)">
-        <div class="note-label"><span class="arrow">▶</span> 【注：已省略 ${b.original ? b.original.length : 0} 字】</div>
-        <div class="note-text">${escHtml(b.text)}</div>
-        ${b.original ? `<div class="note-original">${escHtml(b.original)}</div>` : ''}
-      </div>`;
-    } else {
-      let totalOmitted = groupBuffer.reduce((s, b) => s + (b.original ? b.original.length : 0), 0);
-      html += `<div class="note-group">
-        <div class="note-group-header">
-          <span class="count">${groupBuffer.length}</span> 段省略 · 共 ${totalOmitted} 字
-          <span class="hint">点击展开原文</span>
-        </div>`;
-      groupBuffer.forEach(b => {
-        html += `<div class="note-item" onclick="event.stopPropagation();toggleNoteGroup(this)">
-          <div class="note-label"><span class="arrow">▶</span> 【注：已省略 ${b.original ? b.original.length : 0} 字】</div>
+      const omitted = b.original ? b.original.length : 0;
+      if (b.original) {
+        html += `<div class="single-summarize" onclick="event.stopPropagation();toggleNote(this)">
+          <div class="note-label"><span class="arrow">▶</span> 脱水 · 原文 ${omitted} 字（点击展开）</div>
           <div class="note-text">${escHtml(b.text)}</div>
-          ${b.original ? `<div class="note-original">${escHtml(b.original)}</div>` : ''}
+          <div class="note-original">${escHtml(b.original)}</div>
+        </div>`;
+      } else {
+        html += `<div class="single-summarize" style="cursor:default">
+          <div class="note-label" style="color:#999">脱水</div>
+          <div class="note-text">${escHtml(b.text)}</div>
+        </div>`;
+      }
+    } else {
+      const withOriginal = groupBuffer.filter(b => b.original);
+      const withoutOriginal = groupBuffer.filter(b => !b.original);
+      let totalOmitted = withOriginal.reduce((s, b) => s + b.original.length, 0);
+
+      // Show blocks without original as plain summaries
+      withoutOriginal.forEach(b => {
+        html += `<div class="single-summarize" style="cursor:default">
+          <div class="note-label" style="color:#999">脱水</div>
+          <div class="note-text">${escHtml(b.text)}</div>
         </div>`;
       });
-      html += `</div>`;
+
+      if (withOriginal.length > 0) {
+        html += `<div class="note-group">
+          <div class="note-group-header">
+            <span class="count">${withOriginal.length}</span> 段脱水 · 共 ${totalOmitted} 字原文
+            <span class="hint">点击展开原文</span>
+          </div>`;
+        withOriginal.forEach(b => {
+          const omitted = b.original ? b.original.length : 0;
+          html += `<div class="note-item" onclick="event.stopPropagation();toggleNoteGroup(this)">
+            <div class="note-label"><span class="arrow">▶</span> 脱水 · 原文 ${omitted} 字</div>
+            <div class="note-text">${escHtml(b.text)}</div>
+            <div class="note-original">${escHtml(b.original)}</div>
+          </div>`;
+        });
+        html += `</div>`;
+      }
     }
     groupBuffer = [];
   }
 
-  // Detect chapter boundaries from block data
-  // Blocks from the API have a "chapter" field added by the backend
-  // Track which chapter each block belongs to, so we can add markers
   let prevChapter = -1;
-
-  function flushKeepBuffer() {
-    // No longer needed - each block is already a proper paragraph
-  }
+  let prevParagraph = -1;
 
   blocks.forEach((b, bi) => {
     const chIdx = b.chapter;
@@ -586,23 +626,30 @@ function renderStructured(blocks) {
     if (b.layer === 'keep') {
       flushGroup();
 
-      // Add invisible chapter anchor before first block of each chapter
       if (isNewChapter) {
-        html += `<span id="chapter-anchor-${chIdx}" data-chapter="${chIdx}" style="display:block;position:relative;top:-80px"></span>`;
-        // Add chapter title if available
-        const chTitle = chapters[chIdx]?.title;
-        if (chTitle) {
-          html += `<div class="chapter-title">${escHtml(chTitle)}</div>`;
-        }
+        flushKeep();
+        anchorChapter(chIdx);
+        prevParagraph = -1;
       }
-      // Each block is already a proper-length paragraph
-      html += `<div class="block-keep">${escHtml(b.text)}</div>`;
+
+      // Merge consecutive same-paragraph keep blocks into flowing text
+      if (b.paragraph === prevParagraph && prevChapter === chIdx && keepBuffer.length > 0) {
+        keepBuffer.push(b.text);
+      } else {
+        flushKeep();
+        keepBuffer.push(b.text);
+      }
+
       prevChapter = chIdx !== undefined ? chIdx : prevChapter;
+      prevParagraph = b.paragraph;
     } else if (b.layer === 'summarize') {
+      flushKeep();
+      prevParagraph = -1;
       groupBuffer.push({...b, _chapter: chIdx, _isNewChapter: isNewChapter});
       prevChapter = chIdx !== undefined ? chIdx : prevChapter;
     }
   });
+  flushKeep();
   flushGroup();
 
   el.innerHTML = html;

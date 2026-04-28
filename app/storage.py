@@ -122,6 +122,18 @@ class Storage:
             return []
         return json.loads(path.read_text(encoding="utf-8"))
 
+    async def save_dehydrate_stats(self, book_id: str, stats: dict):
+        import json
+        path = self.data_dir / book_id / "dehydrate_stats.json"
+        path.write_text(json.dumps(stats, ensure_ascii=False), encoding="utf-8")
+
+    async def load_dehydrate_stats(self, book_id: str) -> dict | None:
+        import json
+        path = self.data_dir / book_id / "dehydrate_stats.json"
+        if not path.exists():
+            return None
+        return json.loads(path.read_text(encoding="utf-8"))
+
     async def save_chapter_dehydrated(self, book_id: str, chapters: list[dict]):
         """Save per-chapter dehydration results for EPUB export.
         Each dict: {"title": str, "text": str}.

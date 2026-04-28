@@ -224,15 +224,8 @@ async function loadBookInfo() {
   const empty = document.getElementById('empty-state');
   empty.style.display = (!hasIndexTask && !hasDehydrateTask) ? 'block' : 'none';
 
-  // Start polling if any task is running
-  const isRunning = (hasIndexTask && data.index && data.index.status === 'running') ||
-                    (hasDehydrateTask && data.dehydrate && data.dehydrate.status === 'running');
-  if (isRunning) {
-    startPolling();
-  } else if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  // Always keep polling while on task page (updates every 10s)
+  startPolling();
 }
 
 function renderIndexTask(task, totalChapters, history, isDone) {
@@ -333,8 +326,7 @@ function renderDehydrateTask(task, totalChapters, dehydratedCount, history, isDo
     }
     // Check if there are remaining chapters to dehydrate
     if (displayCount < totalChapters) {
-      const remaining = totalChapters - displayCount;
-      btns += `<button onclick="continueDehydrate(${displayCount + 1}, ${totalChapters})" class="btn btn-sm btn-secondary">继续脱水剩余 ${remaining} 章</button>`;
+      btns += `<div style="margin-top:8px">${renderContinueDehydrateBtn(displayCount + 1, totalChapters)}</div>`;
     }
     btns += `<button onclick="restartTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
     controls.innerHTML = btns;
@@ -366,8 +358,7 @@ function renderDehydrateTask(task, totalChapters, dehydratedCount, history, isDo
     }
     // Check if there are remaining chapters to dehydrate
     if (displayCount < totalChapters) {
-      const remaining = totalChapters - displayCount;
-      btns += `<button onclick="continueDehydrate(${displayCount + 1}, ${totalChapters})" class="btn btn-sm btn-secondary">继续脱水剩余 ${remaining} 章</button>`;
+      btns += `<div style="margin-top:8px">${renderContinueDehydrateBtn(displayCount + 1, totalChapters)}</div>`;
     }
     btns += `<button onclick="restartTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
     controls.innerHTML = btns;
@@ -414,8 +405,7 @@ function renderDehydrateTask(task, totalChapters, dehydratedCount, history, isDo
       // Check if there are remaining chapters to dehydrate
       const doneCount = task.completed ? task.completed.length : taskTotal;
       if (doneCount < totalChapters) {
-        const remaining = totalChapters - doneCount;
-        btns += `<button onclick="continueDehydrate(${doneCount + 1}, ${totalChapters})" class="btn btn-sm btn-secondary">继续脱水剩余 ${remaining} 章</button>`;
+        btns += `<div style="margin-top:8px">${renderContinueDehydrateBtn(doneCount + 1, totalChapters)}</div>`;
       }
       btns += `<button onclick="restartTask('dehydrate')" class="btn btn-sm btn-secondary">重新脱水</button>`;
       controls.innerHTML = btns;
@@ -611,9 +601,27 @@ async function retryFailed() {
   loadBookInfo();
 }
 
-async function continueDehydrate(startChapter, endChapter) {
-  // Start dehydrate for remaining chapters
-  const endpoint = `/api/dehydrate/${bookId}/start?start_chapter=${startChapter}&end_chapter=${endChapter}`;
+function renderContinueDehydrateBtn(startChapter, endChapter) {
+  const remaining = endChapter - startChapter + 1;
+  const defaultCount = Math.min(50, remaining);
+  return `<span style="display:inline-flex;align-items:center;gap:6px;white-space:nowrap">
+    继续脱水
+    <input type="number" id="continue-dehydrate-count" value="${defaultCount}" min="1" max="${remaining}" style="width:52px;padding:4px 6px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;text-align:center">
+    <span style="font-size:12px;color:#888">章（剩余 ${remaining}）</span>
+    <button onclick="doContinueDehydrate(${startChapter}, ${endChapter})" class="btn btn-sm btn-primary">开始</button>
+  </span>`;
+}
+
+async function doContinueDehydrate(startChapter, endChapter) {
+  const remaining = endChapter - startChapter + 1;
+  const input = document.getElementById('continue-dehydrate-count');
+  const n = parseInt(input?.value);
+  if (isNaN(n) || n <= 0 || n > remaining) {
+    alert(`请输入 1-${remaining} 之间的数字`);
+    return;
+  }
+  const actualEnd = startChapter + n - 1;
+  const endpoint = `/api/dehydrate/${bookId}/start?start_chapter=${startChapter}&end_chapter=${actualEnd}`;
   await fetch(endpoint, { method: 'POST' });
   startPolling();
   loadBookInfo();

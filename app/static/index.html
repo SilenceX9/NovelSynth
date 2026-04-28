@@ -5,161 +5,202 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI 网文脱水机</title>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #f9f7f3;
+      --surface: #fff;
+      --border: #e8e4dd;
+      --text: #2c2416;
+      --text-secondary: #8c8478;
+      --text-muted: #b8b0a4;
+      --accent: #8b5e3c;
+      --accent-light: #f5efe8;
+      --blue: #4a6fa5;
+      --blue-light: #e8f0fa;
+      --green: #5b8c5a;
+      --green-light: #e8f5e8;
+      --amber: #b8860b;
+      --amber-light: #fef9ee;
+      --red: #c4554d;
+      --red-light: #fdf0ef;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+      --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+    }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
-  background: linear-gradient(135deg, #f5f2eb 0%, #ede8e0 100%);
-  min-height: 100vh;
-  color: #2c2c2c;
-}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
-.container { max-width: 800px; margin: 0 auto; padding: 24px 20px 60px; }
+    body {
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
 
-/* Header */
-.header {
-  text-align: center; padding: 40px 0 32px;
-}
-.header h1 {
-  font-size: 32px; font-weight: 700;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text; margin-bottom: 8px;
-}
-.header p { color: #888; font-size: 15px; }
-.header-actions { position: absolute; top: 20px; right: 24px; }
+    .container { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
 
-.btn {
-  padding: 8px 18px; border-radius: 10px; border: none;
-  font-size: 13px; cursor: pointer; font-weight: 500;
-  transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px;
-}
-.btn-primary { background: #2563eb; color: white; }
-.btn-primary:hover { background: #1d4ed8; transform: translateY(-1px); }
-.btn-secondary { background: #f0eeea; color: #555; }
-.btn-secondary:hover { background: #e5e2dc; }
-.btn-ghost { background: transparent; color: #666; }
-.btn-ghost:hover { background: #f0eeea; }
-.btn-danger { background: #fef2f2; color: #dc2626; }
-.btn-danger:hover { background: #fee2e2; }
-.btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+    .header { text-align: center; padding: 44px 0 36px; position: relative; }
+    .header-icon { display: block; font-size: 42px; margin-bottom: 12px; line-height: 1; }
+    .header h1 {
+      font-size: 26px; font-weight: 700; color: var(--text);
+      letter-spacing: 0.5px; margin-bottom: 6px;
+    }
+    .header p { color: var(--text-secondary); font-size: 14px; }
+    .header-actions { position: absolute; top: 48px; right: 0; }
 
-/* Cards */
-.card {
-  background: #fff; border-radius: 16px; padding: 24px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
-  margin-bottom: 20px;
-  border: 1px solid rgba(0,0,0,0.04);
-}
-.card h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: #1a1a1a; }
-.card h3 { font-size: 15px; font-weight: 600; margin: 12px 0 8px; color: #333; }
+    .btn {
+      padding: 7px 16px; border-radius: var(--radius-sm); border: none;
+      font-size: 13px; cursor: pointer; font-weight: 500; font-family: inherit;
+      transition: all 0.18s; display: inline-flex; align-items: center; gap: 5px;
+      white-space: nowrap; text-decoration: none; line-height: 1.4;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #7a5232; }
+    .btn-secondary { background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: #f0ece6; color: var(--text); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); }
+    .btn-ghost:hover { background: rgba(0,0,0,0.04); color: var(--text); }
+    .btn-danger { background: var(--red-light); color: var(--red); }
+    .btn-danger:hover { background: #fbe5e3; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
 
-/* Upload area */
-.upload-area {
-  border: 2px dashed #d0cdc6; border-radius: 12px;
-  padding: 32px; text-align: center; cursor: pointer;
-  transition: all 0.2s; position: relative;
-}
-.upload-area:hover { border-color: #2563eb; background: #f8f7ff; }
-.upload-area.dragover { border-color: #2563eb; background: #eef0ff; }
-.upload-area .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
-.upload-area p { color: #888; font-size: 14px; }
-.upload-area input[type="file"] {
-  position: absolute; inset: 0; opacity: 0; cursor: pointer;
-}
+    .card {
+      background: var(--surface); border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-md);
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+    }
+    .card h2 {
+      font-size: 16px; font-weight: 600; margin-bottom: 16px;
+      color: var(--text); display: flex; align-items: center; gap: 8px;
+    }
 
-/* History table */
-.history-item {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px; border-radius: 10px;
-  transition: background 0.15s;
-  border: 1px solid #f0f0f0; margin-bottom: 8px;
-}
-.history-item:hover { background: #fafafa; border-color: #e5e5e5; }
-.history-info { flex: 1; min-width: 0; }
-.history-info .title { font-weight: 600; font-size: 15px; color: #1a1a1a; margin-bottom: 6px; }
-.history-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+    .upload-area {
+      border: 2px dashed var(--border); border-radius: var(--radius-md);
+      padding: 36px 24px; text-align: center; cursor: pointer;
+      transition: all 0.2s; position: relative; background: #fcfbf8;
+    }
+    .upload-area:hover { border-color: var(--accent); background: var(--accent-light); }
+    .upload-area.dragover { border-color: var(--accent); background: var(--accent-light); }
+    .upload-area .icon { font-size: 36px; margin-bottom: 8px; opacity: 0.6; line-height: 1; }
+    .upload-area .label { color: var(--text-secondary); font-size: 14px; }
+    .upload-area .hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-.badge {
-  display: inline-block; padding: 2px 10px; border-radius: 20px;
-  font-size: 12px; font-weight: 500; margin-right: 4px;
-}
-.badge-indexed { background: #dbeafe; color: #1d4ed8; }
-.badge-dehydrated { background: #dcfce7; color: #15803d; }
-.badge-pending { background: #fef3c7; color: #b45309; }
-.badge-running { background: #dbeafe; color: #2563eb; }
-.badge-paused { background: #fef3c7; color: #b45309; }
+    .history-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 0; transition: all 0.15s;
+      border-bottom: 1px solid #f4f1eb; gap: 12px;
+    }
+    .history-item:last-child { border-bottom: none; }
+    .history-item:hover { padding-left: 4px; }
+    .history-info { flex: 1; min-width: 0; }
+    .history-info .title {
+      font-weight: 600; font-size: 15px; color: var(--text);
+      margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .history-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
 
-.empty-state { text-align: center; padding: 48px 20px; color: #bbb; }
-.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
-.empty-state p { font-size: 14px; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 99px;
+      font-size: 11px; font-weight: 500; margin-right: 4px; letter-spacing: 0.2px;
+    }
+    .badge-indexed { background: var(--blue-light); color: var(--blue); }
+    .badge-dehydrated { background: var(--green-light); color: var(--green); }
+    .badge-pending { background: var(--amber-light); color: var(--amber); }
+    .badge-running { background: var(--blue-light); color: var(--blue); }
+    .badge-paused { background: var(--amber-light); color: var(--amber); }
 
-.status { font-size: 13px; margin-top: 12px; color: #666; }
-.status.success { color: #15803d; }
-.status.error { color: #dc2626; }
+    .empty-state { text-align: center; padding: 36px 20px; color: var(--text-muted); }
+    .empty-state .icon { font-size: 40px; margin-bottom: 10px; line-height: 1; }
+    .empty-state p { font-size: 14px; }
 
-/* Divider */
-.divider {
-  display: flex; align-items: center; gap: 16px;
-  margin: 28px 0; color: #ccc;
-}
-.divider::before, .divider::after {
-  content: ''; flex: 1; height: 1px; background: #e5e5e5;
-}
+    .status { font-size: 13px; margin-top: 10px; color: var(--text-secondary); }
+    .status.success { color: var(--green); }
+    .status.error { color: var(--red); }
 
-/* Settings Modal */
-.modal {
-  position: fixed; inset: 0; z-index: 200;
-  background: rgba(0,0,0,0.4);
-  display: flex; align-items: center; justify-content: center;
-}
-.modal-content {
-  background: #fff; border-radius: 16px; width: 440px;
-  max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-  overflow: hidden;
-}
-.modal-header {
-  padding: 20px 24px 16px; display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid #f0f0f0;
-}
-.modal-header h3 { font-size: 16px; }
-.close-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #999; padding: 4px; }
-.modal-body { padding: 20px 24px 24px; }
-.form-group { margin-bottom: 16px; }
-.form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
-.form-group input, .form-group select {
-  width: 100%; padding: 9px 12px; border: 1.5px solid #e0e0e0;
-  border-radius: 8px; font-size: 14px; font-family: inherit;
-}
-.form-group input:focus, .form-group select:focus { outline: none; border-color: #2563eb; }
+    .divider {
+      display: flex; align-items: center; gap: 14px;
+      margin: 12px 0; color: var(--text-muted); font-size: 13px;
+    }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e8e4dd; }
 
-/* Context link button */
-.context-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 16px; background: #f0eeea; color: #555;
-  border-radius: 8px; text-decoration: none; font-size: 13px;
-  transition: background 0.15s;
-}
-.context-btn:hover { background: #e5e2dc; }
+    .modal {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .modal-content {
+      background: var(--surface); border-radius: var(--radius-lg); width: 440px;
+      max-width: 92vw; box-shadow: var(--shadow-lg); overflow: hidden;
+      animation: modalIn 0.2s ease;
+    }
+    @keyframes modalIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .modal-header {
+      padding: 20px 24px 14px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-header h3 { font-size: 16px; font-weight: 600; }
+    .close-btn {
+      background: none; border: none; font-size: 18px; cursor: pointer;
+      color: var(--text-muted); padding: 4px; border-radius: 50%;
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+    }
+    .close-btn:hover { background: #f0ece6; color: var(--text); }
+    .modal-body { padding: 20px 24px 24px; }
 
-/* Responsive */
-@media (max-width: 600px) {
-  .container { padding: 16px 12px 40px; }
-  .header { padding: 24px 0 20px; }
-  .header h1 { font-size: 24px; }
-  .history-item { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .history-actions { align-self: flex-end; }
-}
-</style>
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 9px 12px; border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 14px; font-family: inherit;
+      background: #fcfbf8; transition: border-color 0.15s; color: var(--text);
+    }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); background: #fff; }
+
+    .range-row {
+      display: flex; gap: 10px; align-items: end;
+      padding: 14px 16px; background: #fcfbf8; border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+    }
+    .range-row label { font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .range-row input {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: 14px; font-family: inherit; text-align: center; background: #fff;
+    }
+    .range-row input:focus { outline: none; border-color: var(--accent); }
+    .chapter-list-preview {
+      max-height: 220px; overflow-y: auto; font-size: 13px;
+      color: var(--text-secondary); margin: 12px 0;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+    }
+    .chapter-list-preview > div { padding: 6px 12px; border-bottom: 1px solid #f8f6f1; }
+    .chapter-list-preview > div:last-child { border-bottom: none; }
+
+    @media (max-width: 600px) {
+      .container { padding: 16px 12px 40px; }
+      .header { padding: 28px 0 20px; }
+      .header h1 { font-size: 22px; }
+      .header-actions { position: static; margin-top: 12px; display: flex; justify-content: center; }
+      .history-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .history-actions { align-self: flex-end; flex-wrap: wrap; }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
     <div class="header-actions">
-      <button onclick="openSettings()" class="btn btn-secondary">⚙️ LLM 设置</button>
+      <button onclick="openSettings()" class="btn btn-ghost">设置</button>
     </div>
+    <span class="header-icon">📖</span>
     <h1>AI 网文脱水机</h1>
-    <p>上传小说 → 自动脱水 → 阅读纯净版</p>
+    <p>上传小说，智能脱水，只留主线精华</p>
   </div>
 
   <!-- History -->
@@ -174,12 +215,30 @@ body {
   <div class="card">
     <h2>上传新小说</h2>
     <div class="upload-area" id="upload-area">
-      <div class="icon">📄</div>
-      <p>拖拽文件到此处，或点击选择</p>
-      <p style="font-size:12px;color:#bbb;margin-top:4px">支持 .txt 和 .epub 文件</p>
+      <div class="icon">📖</div>
+      <div class="label">拖拽文件到此处，或点击选择</div>
+      <div class="hint">支持 .txt 和 .epub 文件</div>
       <input type="file" id="file-input" accept=".txt,.epub" style="display:none">
     </div>
     <div id="upload-status" class="status"></div>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <span style="font-size:13px;color:var(--text-muted)">导出 EPUB 章节范围：</span>
+      <button onclick="document.getElementById('epub-tool-input').click()" class="btn btn-secondary btn-sm">选择 EPUB 导出章节</button>
+      <input type="file" id="epub-tool-input" accept=".epub" style="display:none" onchange="previewEpubTool(this)">
+    </div>
+  </div>
+</div>
+
+<!-- EPUB Preview Tool Modal -->
+<div id="epub-tool-modal" class="modal" style="display:none">
+  <div class="modal-content" style="width:520px;max-height:85vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <h3>EPUB 章节导出</h3>
+      <button onclick="closeEpubTool()" class="close-btn">&times;</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;flex:1" id="epub-tool-body">
+    </div>
   </div>
 </div>
 
@@ -191,7 +250,7 @@ body {
       <button onclick="closeChapterPreview()" class="close-btn">&times;</button>
     </div>
     <div class="modal-body" style="overflow-y:auto;flex:1">
-      <div id="chapter-preview-info" style="margin-bottom:16px"></div>
+      <div id="chapter-preview-info" style="margin-bottom:14px"></div>
       <div id="chapter-preview-range" style="margin-bottom:16px;padding:16px;background:#f8f7ff;border-radius:10px">
         <p style="font-size:14px;font-weight:600;margin-bottom:10px">选择处理范围</p>
         <div style="display:flex;gap:12px;align-items:end">
@@ -206,7 +265,7 @@ body {
         </div>
         <p id="chapter-cost-estimate" style="font-size:12px;color:#888;margin-top:10px"></p>
       </div>
-      <div id="chapter-preview-list" style="max-height:300px;overflow-y:auto;font-size:13px;color:#666;margin-bottom:16px"></div>
+      <div id="chapter-preview-list" class="chapter-list-preview"></div>
       <div style="display:flex;gap:10px">
         <button onclick="startProcessing()" class="btn btn-primary" style="flex:1;justify-content:center;padding:12px">开始处理</button>
         <button onclick="closeChapterPreview()" class="btn btn-secondary" style="flex:1;justify-content:center;padding:12px">取消</button>
@@ -284,6 +343,7 @@ body {
 <script>
 let bookId = null;
 let llmProviders = {};
+let epubToolFile = null;
 
 // History
 async function loadHistory() {
@@ -633,7 +693,134 @@ document.getElementById('chapter-preview-modal').onclick = function(e) {
   if (e.target === this) closeChapterPreview();
 };
 
+// EPUB Tool: preview chapter stats + export range
+async function previewEpubTool(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  epubToolFile = file;
+
+  const modal = document.getElementById('epub-tool-modal');
+  const body = document.getElementById('epub-tool-body');
+  modal.style.display = 'flex';
+  body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted)">分析中...</div>';
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/books/preview-epub', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error((await res.json()).detail || '分析失败');
+    const data = await res.json();
+
+    const total = data.real_chapters;
+    const defaultEnd = Math.min(50, total);
+
+    let html = '<div style="margin-bottom:16px">';
+    html += '<p style="font-weight:600;font-size:15px;color:var(--text);margin-bottom:6px">' + escHtml(data.filename) + '</p>';
+    html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">';
+    html += '<span class="badge badge-dehydrated">' + data.real_chapters + ' 章正文</span>';
+    if (data.noise_count > 0) {
+      html += '<span class="badge badge-pending">' + data.noise_count + ' 章噪声（自动跳过）</span>';
+    }
+    html += '</div></div>';
+
+    if (data.noise_titles && data.noise_titles.length > 0) {
+      html += '<details style="margin-bottom:14px;font-size:12px;color:var(--text-secondary)">';
+      html += '<summary style="cursor:pointer;color:var(--amber);font-weight:600">已识别噪声章节（' + data.noise_titles.length + ' 章）</summary>';
+      data.noise_titles.forEach(t => {
+        html += '<div style="padding:2px 0 2px 12px">' + escHtml(t) + '</div>';
+      });
+      html += '</details>';
+    }
+
+    // Range selection
+    html += '<div class="range-row" style="margin-bottom:16px">';
+    html += '<div style="flex:1"><label>起始章节</label><input type="number" id="epub-start" min="1" max="' + total + '" value="1"></div>';
+    html += '<div style="flex:1"><label>结束章节</label><input type="number" id="epub-end" min="1" max="' + total + '" value="' + defaultEnd + '"></div>';
+    html += '</div>';
+
+    // Chapter preview
+    if (data.preview && data.preview.length > 0) {
+      html += '<p style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px">章节预览（前 ' + Math.min(data.preview.length, 10) + ' 章）：</p>';
+      html += '<div class="chapter-list-preview" style="max-height:160px;margin-bottom:16px">';
+      data.preview.slice(0, 10).forEach(ch => {
+        html += '<div>' + escHtml(ch.title) + ' <span style="color:var(--text-muted);font-size:11px">' + ch.char_count.toLocaleString() + ' 字</span></div>';
+      });
+      html += '</div>';
+    }
+
+    // Download buttons
+    html += '<div style="display:flex;gap:10px">';
+    html += '<button onclick="downloadExtracted(\'epub\')" class="btn btn-primary" style="flex:1;justify-content:center;padding:12px">导出 EPUB</button>';
+    html += '<button onclick="downloadExtracted(\'txt\')" class="btn btn-secondary" style="flex:1;justify-content:center;padding:12px">导出 TXT</button>';
+    html += '</div>';
+    html += '<button onclick="closeEpubTool()" class="btn btn-ghost" style="width:100%;margin-top:8px;justify-content:center">关闭</button>';
+
+    body.innerHTML = html;
+
+    // Wire up range inputs
+    document.getElementById('epub-start').onchange = function() {
+      const s = parseInt(this.value) || 1;
+      const e = parseInt(document.getElementById('epub-end').value) || total;
+      if (s > e) document.getElementById('epub-end').value = s;
+    };
+    document.getElementById('epub-end').onchange = function() {
+      const e = parseInt(this.value) || total;
+      const s = parseInt(document.getElementById('epub-start').value) || 1;
+      if (e < s) document.getElementById('epub-start').value = e;
+    };
+  } catch(e) {
+    body.innerHTML = '<div style="text-align:center;padding:40px;color:var(--red)">分析失败：' + escHtml(e.message) + '<br><button onclick="closeEpubTool()" class="btn btn-ghost btn-sm" style="margin-top:12px">关闭</button></div>';
+  }
+
+  input.value = '';
+}
+
+async function downloadExtracted(format) {
+  if (!epubToolFile) return;
+
+  const start = parseInt(document.getElementById('epub-start').value) || 1;
+  const end = parseInt(document.getElementById('epub-end').value) || 1;
+
+  const fd = new FormData();
+  fd.append('file', epubToolFile);
+  fd.append('start_chapter', start);
+  fd.append('end_chapter', end);
+  fd.append('format', format);
+
+  const res = await fetch('/api/books/extract-epub', { method: 'POST', body: fd });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert('导出失败：' + (err.detail || res.statusText));
+    return;
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const ext = format === 'epub' ? 'epub' : 'txt';
+  const baseName = epubToolFile.name.replace(/\.\w+$/, '');
+  a.download = baseName + '_' + start + '-' + end + '.' + ext;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function closeEpubTool() {
+  document.getElementById('epub-tool-modal').style.display = 'none';
+  epubToolFile = null;
+}
+
+document.getElementById('epub-tool-modal').onclick = function(e) {
+  if (e.target === this) closeEpubTool();
+};
+
 loadHistory();
+
+// Poll for task status updates every 10s on main page
+setInterval(loadHistory, 10000);
 </script>
 </body>
 </html>
