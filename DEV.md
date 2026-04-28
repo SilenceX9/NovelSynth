@@ -163,7 +163,7 @@ data/
 
 前端设置页面或直接编辑 `data/llm_config.json`：
 ```json
-{"provider": "deepseek", "base_url": "https://api.deepseek.com/v1", "model": "deepseek-v4-flash", "api_key": "sk-xxx"}
+{"provider": "your-provider", "base_url": "https://api.example.com/v1", "model": "model-name", "api_key": "your-api-key-here"}
 ```
 
 ### 调整并行度
